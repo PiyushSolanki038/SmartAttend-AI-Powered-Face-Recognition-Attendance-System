@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.smartattend/
+*.db
+*.log
+settings.json

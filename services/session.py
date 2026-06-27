@@ -46,6 +46,7 @@ class SessionController:
         self.paused = False
         self._last_labels = []
         self._match_streaks = {}
+        self.liveness.reset_all()
         return True
 
     def toggle_pause(self):
@@ -106,23 +107,33 @@ class SessionController:
                         streak = self._match_streaks.get(student_id, 0) + 1
                         self._match_streaks[student_id] = streak
                         student = queries.get_student(student_id)
-                        labels.append(student["name"])
-                        # Require a few consecutive matching ticks before committing the mark,
-                        # so a single misrecognized frame can't flip someone present.
-                        if streak >= config.ATTENDANCE_CONFIRM_STREAK:
+
+                        # A blink is required before marking present, since a static held-up
+                        # photo/screen can pass the texture check but cannot blink — this is
+                        # what actually catches the "photo on a phone" spoof.
+                        if config.LIVENESS_ENABLED:
+                            blinked = self.liveness.observe_blink(student_id, small_rgb, box)
+                        else:
+                            blinked = True
+
+                        if streak >= config.ATTENDANCE_CONFIRM_STREAK and blinked:
+                            labels.append(student["name"])
                             is_new = queries.mark_present(self.session_id, student_id, distance)
                             self.present_students[student_id] = student["name"]
                             if is_new:
                                 newly_recognized.append(student["name"])
+                        else:
+                            labels.append(f"{student['name']} (confirming)")
                     else:
                         queries.log_unknown(self.session_id, distance)
                         self.unknown_count += 1
                         labels.append("Unknown")
-                # Reset streaks for students not seen this tick so a brief mismatch doesn't
-                # carry over a stale streak into a later, unrelated sighting.
+                # Reset streaks/blink-tracking for students not seen this tick so a brief
+                # mismatch doesn't carry over stale state into a later, unrelated sighting.
                 for sid in list(self._match_streaks):
                     if sid not in matched_this_tick:
                         del self._match_streaks[sid]
+                        self.liveness.reset_track(sid)
                 self._last_labels = labels
             else:
                 self._match_streaks.clear()

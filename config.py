@@ -20,6 +20,12 @@ MIN_ENCODINGS = 3
 SESSION_TIMEOUT_MINUTES = 60
 LIVENESS_ENABLED = True
 LIVENESS_TEXTURE_MIN = 25.0  # lower = more lenient; raise if photo/screen spoofs get through, lower if real faces get flagged
+# Blink detection (Eye Aspect Ratio) catches a photo/video held up to the camera, which the
+# texture check alone misses since an on-screen photo can look just as "sharp" as a real face.
+# A static photo can't blink, so attendance requires a detected blink within this window.
+LIVENESS_BLINK_WINDOW = 10  # rolling number of detection ticks (~FRAME_SKIP apart) of EAR history kept per face
+LIVENESS_EAR_OPEN_MIN = 0.22  # EAR must have been at least this high (eye clearly open) right before the dip
+LIVENESS_EAR_CLOSED_MAX = 0.17  # EAR at or below this counts as "closed" — the dip that confirms a blink
 LOW_LIGHT_ENHANCEMENT_ENABLED = True
 
 # UI
@@ -46,7 +52,9 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 _PERSISTED_KEYS = [
     "CAMERA_INDEX", "FRAME_SKIP", "TOLERANCE", "MIN_ENCODINGS",
     "THEME", "DEFAULTER_THRESHOLD", "SESSION_TIMEOUT_MINUTES",
-    "LIVENESS_ENABLED", "LIVENESS_TEXTURE_MIN", "LOW_LIGHT_ENHANCEMENT_ENABLED", "LATE_THRESHOLD_MINUTES",
+    "LIVENESS_ENABLED", "LIVENESS_TEXTURE_MIN", "LIVENESS_BLINK_WINDOW",
+    "LIVENESS_EAR_OPEN_MIN", "LIVENESS_EAR_CLOSED_MAX",
+    "LOW_LIGHT_ENHANCEMENT_ENABLED", "LATE_THRESHOLD_MINUTES",
     "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "NOTIFY_ON_SESSION_END", "NOTIFY_DEFAULTER_CHECK",
 ]
 

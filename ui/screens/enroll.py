@@ -338,10 +338,14 @@ class EnrollScreen(ctk.CTkFrame):
 
         for row_idx, s in enumerate(students, start=1):
             pct = attendance_lookup.get(s["id"], 0.0)
-            ctk.CTkLabel(self.table, text=s["roll_no"]).grid(row=row_idx, column=0, padx=8, pady=2, sticky="w")
-            ctk.CTkLabel(self.table, text=s["name"]).grid(row=row_idx, column=1, padx=8, pady=2, sticky="w")
-            ctk.CTkLabel(self.table, text=s["department"] or "").grid(row=row_idx, column=2, padx=8, pady=2, sticky="w")
-            ctk.CTkLabel(self.table, text=f"{pct:.0f}%").grid(row=row_idx, column=3, padx=8, pady=2, sticky="w")
+            roll_label = ctk.CTkLabel(self.table, text=s["roll_no"])
+            roll_label.grid(row=row_idx, column=0, padx=8, pady=2, sticky="w")
+            name_label = ctk.CTkLabel(self.table, text=s["name"])
+            name_label.grid(row=row_idx, column=1, padx=8, pady=2, sticky="w")
+            dept_label = ctk.CTkLabel(self.table, text=s["department"] or "")
+            dept_label.grid(row=row_idx, column=2, padx=8, pady=2, sticky="w")
+            pct_label = ctk.CTkLabel(self.table, text=f"{pct:.0f}%")
+            pct_label.grid(row=row_idx, column=3, padx=8, pady=2, sticky="w")
             edit_btn = ctk.CTkButton(
                 self.table, text="Edit", width=60,
                 command=lambda sid=s["id"], r=s["roll_no"], n=s["name"], d=s["department"]: self._edit_student(sid, r, n, d),
@@ -352,7 +356,7 @@ class EnrollScreen(ctk.CTkFrame):
                 command=lambda sid=s["id"], n=s["name"]: self._delete_student(sid, n),
             )
             delete_btn.grid(row=row_idx, column=5, padx=4, pady=2)
-            self.table._row_widgets.extend([edit_btn, delete_btn])
+            self.table._row_widgets.extend([roll_label, name_label, dept_label, pct_label, edit_btn, delete_btn])
 
     def on_show(self):
         self._refresh_table()

@@ -2,6 +2,14 @@ import json
 import os
 import secrets
 
+from dotenv import load_dotenv
+
+# Also called in db/connection.py, but config.py reads SMTP_*/env vars at import time too and
+# may be imported first (e.g. by services/notifications.py before any db module) — without
+# this, a local .env file's values wouldn't be visible yet when this module's env.get() calls
+# below run. load_dotenv() is idempotent and doesn't override real env vars either way.
+load_dotenv()
+
 APP_NAME = "SmartAttend"
 VERSION = "1.0.0"
 

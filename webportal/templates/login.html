@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Student Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="login-brand">
+            <div class="brand-logo">SA</div>
+            <h1>SmartAttend</h1>
+            <p>Student Portal</p>
+        </div>
+        <div class="panel login-card">
+            {% if error %}<div class="error">{{ error }}</div>{% endif %}
+            <form method="post" action="/login">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="username">Roll Number</label>
+                <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required>
+                <button type="submit" class="btn-block">Login</button>
+            </form>
+            <p style="margin-top:14px;"><a href="/forgot-password">Forgot password?</a></p>
+        </div>
+    </div>
+</body>
+</html>

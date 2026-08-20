@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Requests</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests" class="active"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>Requests</h1>
+                <div class="who">
+                    <div class="who-meta">
+                        <div class="who-name">{{ student.name }}</div>
+                        <div class="who-sub">{{ student.roll_no }}</div>
+                    </div>
+                    <div class="avatar">{{ student.name[0]|upper }}</div>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div class="icon-tile">
+                    <div class="badge badge-amber">&#9203;</div>
+                    <div class="tile-label">Pending</div>
+                    <div class="tile-value">{{ counts.pending }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-green">&#10003;</div>
+                    <div class="tile-label">Approved</div>
+                    <div class="tile-value">{{ counts.approved }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-red">&#10005;</div>
+                    <div class="tile-label">Rejected</div>
+                    <div class="tile-value">{{ counts.rejected }}</div>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <a href="/disputes" class="panel" style="text-decoration:none; display:block;">
+                    <div class="panel-title">Dispute a Mark</div>
+                    <p style="font-size:0.82rem; color:var(--text-mid);">Think you were wrongly marked absent? Flag it for faculty review.</p>
+                </a>
+                <a href="/checkin-request" class="panel" style="text-decoration:none; display:block;">
+                    <div class="panel-title">Check-in Request</div>
+                    <p style="font-size:0.82rem; color:var(--text-mid);">Camera or lighting failed today? Ask faculty to mark you present manually.</p>
+                </a>
+                <a href="/rescan-request" class="panel" style="text-decoration:none; display:block;">
+                    <div class="panel-title">Face Re-scan</div>
+                    <p style="font-size:0.82rem; color:var(--text-mid);">Recognition not matching lately (new look)? Request a fresh enrollment scan.</p>
+                </a>
+                <a href="/leave-request" class="panel" style="text-decoration:none; display:block;">
+                    <div class="panel-title">Leave / Absence</div>
+                    <p style="font-size:0.82rem; color:var(--text-mid);">Know you'll be out? Submit a leave request in advance.</p>
+                </a>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Recent Activity</div>
+                {% for r in recent %}
+                <div class="row">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="activity-icon
+                            {% if r.kind == 'dispute' %}badge-purple{% elif r.kind == 'checkin' %}badge-blue{% else %}badge-amber{% endif %}">
+                            {% if r.kind == 'dispute' %}&#9888;{% elif r.kind == 'checkin' %}&#128100;{% else %}&#128260;{% endif %}
+                        </div>
+                        <div>
+                            <div class="row-title">
+                                {% if r.kind == 'dispute' %}Dispute{% elif r.kind == 'checkin' %}Check-in Request{% else %}Re-scan Request{% endif %}
+                            </div>
+                            <div class="row-sub">{{ r.label }} &middot; {{ r.created_at }}</div>
+                        </div>
+                    </div>
+                    <span class="status-pill status-{{ 'present' if r.status == 'approved' else ('absent' if r.status == 'rejected' else 'unknown') }}">{{ r.status }}</span>
+                </div>
+                {% else %}
+                <p class="empty-state">No requests submitted yet.</p>
+                {% endfor %}
+            </div>
+        </main>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests" class="active"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

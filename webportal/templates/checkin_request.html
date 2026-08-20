@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Check-in Request</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests" class="active"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>Check-in Request</h1>
+                <div class="avatar">{{ student.name[0]|upper }}</div>
+            </div>
+
+            <div class="panel" style="max-width:480px;">
+                {% if error %}<div class="error">{{ error }}</div>{% endif %}
+                {% if not open_session %}
+                <p class="empty-state">There's no active attendance session right now.</p>
+                {% elif already_marked %}
+                <div class="success-msg">You're already marked for today's session — no request needed.</div>
+                {% elif pending %}
+                <div class="success-msg">Your check-in request is pending faculty review.</div>
+                {% else %}
+                <p style="font-size:0.85rem; color:var(--text-mid); margin-bottom:14px;">
+                    Use this if the camera didn't recognize you (bad lighting, camera issue) — faculty will review and can mark you present manually.
+                </p>
+                <form method="post" action="/checkin-request">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="reason">What happened?</label>
+                    <textarea id="reason" name="reason" required rows="3"
+                              style="width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:var(--page-bg); margin-bottom:14px;"></textarea>
+                    <button type="submit" class="btn-block">Submit Request</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <div class="panel" style="margin-top:16px;">
+                <div class="panel-title">Your Check-in Requests</div>
+
+                <div class="grid-3" style="margin-bottom:10px;">
+                    <div class="icon-tile"><div class="tile-label">Pending</div><div class="tile-value">{{ counts.pending }}</div></div>
+                    <div class="icon-tile"><div class="tile-label">Approved</div><div class="tile-value">{{ counts.approved }}</div></div>
+                    <div class="icon-tile"><div class="tile-label">Rejected</div><div class="tile-value">{{ counts.rejected }}</div></div>
+                </div>
+
+                <div class="filter-bar">
+                    <a href="/checkin-request?status=all" class="filter-chip {{ 'active' if active_status == 'all' }}">All ({{ counts.all }})</a>
+                    <a href="/checkin-request?status=pending" class="filter-chip {{ 'active' if active_status == 'pending' }}">Pending ({{ counts.pending }})</a>
+                    <a href="/checkin-request?status=approved" class="filter-chip {{ 'active' if active_status == 'approved' }}">Approved ({{ counts.approved }})</a>
+                    <a href="/checkin-request?status=rejected" class="filter-chip {{ 'active' if active_status == 'rejected' }}">Rejected ({{ counts.rejected }})</a>
+                </div>
+
+                <input type="text" id="checkinSearch" class="search-input" placeholder="Search by subject or reason...">
+
+                <div id="checkinList">
+                {% for r in history %}
+                <div class="row-with-action" data-search="{{ ((r.subject or 'general') ~ ' ' ~ r.reason) | lower }}">
+                    <div>
+                        <div class="row-title">{{ r.subject or "General" }} — {{ r.started_at }}</div>
+                        <div class="row-sub">{{ r.reason }}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="status-pill status-{{ 'present' if r.status == 'approved' else ('absent' if r.status == 'rejected' else 'unknown') }}">{{ r.status }}</span>
+                        {% if r.status == 'pending' %}
+                        <form method="post" action="/checkin-request/cancel" onsubmit="return confirm('Cancel this request?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="request_id" value="{{ r.id }}">
+                            <button type="submit" class="btn-cancel">Cancel</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="empty-state">No check-in requests in this filter.</p>
+                {% endfor %}
+                </div>
+            </div>
+        </main>
+        <script>
+            document.getElementById('checkinSearch').addEventListener('input', function (e) {
+                var term = e.target.value.trim().toLowerCase();
+                document.querySelectorAll('#checkinList [data-search]').forEach(function (row) {
+                    var haystack = row.getAttribute('data-search').toLowerCase();
+                    row.style.display = haystack.indexOf(term) === -1 ? 'none' : '';
+                });
+            });
+        </script>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests" class="active"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

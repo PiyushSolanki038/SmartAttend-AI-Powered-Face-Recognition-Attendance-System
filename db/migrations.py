@@ -1,45 +1,16 @@
-from db.connection import get_connection
+"""HISTORICAL / NOT EXECUTED AT RUNTIME as of the Postgres (Supabase) migration.
 
-# Each entry: (version, sql_statement). Statements must be additive/idempotent-safe;
-# duplicate-column/table errors are swallowed since CREATE TABLE already guards most cases.
-MIGRATIONS = [
-    (1, "ALTER TABLE sessions ADD COLUMN created_by_user_id INTEGER REFERENCES users(id);"),
-    (2, """
-        CREATE TABLE IF NOT EXISTS student_encodings (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id  INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-            encoding    BLOB NOT NULL,
-            source      TEXT,
-            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """),
-    (3, "CREATE INDEX IF NOT EXISTS idx_student_encodings_student ON student_encodings(student_id);"),
-    (4, """
-        INSERT INTO student_encodings (student_id, encoding, source)
-        SELECT id, encoding, 'legacy_backfill' FROM students
-        WHERE id NOT IN (SELECT student_id FROM student_encodings);
-    """),
-    (5, """
-        CREATE TABLE IF NOT EXISTS spoof_logs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id  INTEGER NOT NULL REFERENCES sessions(id),
-            occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """),
-]
+This file's step-by-step SQLite migrations used to be replayed against the desktop app's
+local smartattend.db on every startup via run_migrations(). Supabase starts from an empty
+database, and db/schema_postgres.py already contains the fully consolidated final schema
+(equivalent to the end state of every migration that used to live here), applied directly via
+CREATE TABLE/INDEX IF NOT EXISTS in db/schema.py's init_db(). run_migrations() is no longer
+called from anywhere in the codebase (verified via grep across the repo).
 
-
-def run_migrations():
-    conn = get_connection()
-    current = conn.execute("PRAGMA user_version").fetchone()[0]
-    for version, stmt in MIGRATIONS:
-        if version <= current:
-            continue
-        try:
-            conn.execute(stmt)
-            conn.execute(f"PRAGMA user_version = {version}")
-            conn.commit()
-        except Exception as exc:
-            conn.rollback()
-            print(f"Migration {version} failed, stopping at last successful version: {exc}")
-            break
+The MIGRATIONS list and run_migrations() function body have been deleted — the SQLite-specific
+syntax they contained (AUTOINCREMENT, PRAGMA user_version, PRAGMA foreign_keys, the users-table
+rebuild dance for changing a CHECK constraint) has no direct Postgres equivalent and would need
+a real migration tool (e.g. Alembic) if step-by-step migrations are wanted again in the future.
+For the historical record of exactly how the SQLite schema evolved column-by-column, check git
+history for this file as of the commit that introduced the Postgres migration.
+"""

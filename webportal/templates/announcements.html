@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Announcements</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div><div class="brand-name">SmartAttend</div><div class="brand-sub">Student Portal</div></div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements" class="active"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot"><a href="/logout"><span class="icon">&#8630;</span>Logout</a></div>
+        </aside>
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar"><h1>Announcements</h1><div class="avatar">{{ student.name[0]|upper }}</div></div>
+            <div class="panel">
+                {% for a in announcements %}
+                <div class="row-with-action">
+                    <div>
+                        <div class="row-title">{{ a.subject }} {% if a.is_institution_wide %}<span class="status-pill status-unknown">institution-wide</span>{% endif %}</div>
+                        <div class="row-sub">{{ a.body }}</div>
+                        <div class="row-sub" style="opacity:.6;">{{ a.created_at }}</div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="empty-state">No announcements yet.</p>
+                {% endfor %}
+            </div>
+        </main>
+    </div>
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

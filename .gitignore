@@ -5,3 +5,15 @@ __pycache__/
 *.db
 *.log
 settings.json
+.env
+
+# Personal academic documents (reports, rubrics, presentations) — not project source
+*.docx
+*.pptx
+MP-I_Rubrics*.pdf
+ppt_content*.md
+presentation_guide.md
+qna_prep*.md
+review2_content.md
+reportMU.md
+demo_timetable_*.csv

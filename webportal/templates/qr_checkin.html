@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - QR Check-in</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="login-brand">
+            <div class="brand-logo">SA</div>
+            <h1>SmartAttend</h1>
+            <p>QR Self Check-in</p>
+        </div>
+        <div class="panel login-card">
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% else %}
+            <p>You've been checked in for session #{{ session_id }}.</p>
+            {% endif %}
+            <a href="/dashboard" class="btn-block" style="display:block; text-align:center; text-decoration:none;">Back to Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

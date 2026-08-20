@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 import cv2
 
 import config
@@ -19,7 +21,12 @@ class SessionController:
         self.detector = FaceDetector()
         self.recognizer = Recognizer()
         self.liveness = LivenessChecker()
-        self.session_id = None
+        self.session_id = None          # "last resolved session id" — kept for QR/substitute/manual-
+                                         # override UI actions that need *a* session_id to act on
+        self._slot_session_cache = {}   # timetable_slot_id -> session_id, resolved today
+        self._fallback_session_id = None
+        self._today = None              # local date string, refreshed if the loop straddles midnight
+        self._created_by_user_id = None
         self._frame_count = 0
         self._stored_encodings = []
         self.present_students = {}  # student_id -> name
@@ -32,11 +39,16 @@ class SessionController:
         self._match_streaks = {}  # student_id -> consecutive detection ticks matched in a row
 
     def start(self, user_id: int = None) -> bool:
-        """Starts (or resumes) today's always-on auto-attendance session. No subject/section/
-        faculty input is needed — attendance is routed by each recognized student's own branch."""
+        """Starts (or resumes) today's always-on auto-attendance watching. No subject/section/
+        faculty input is needed — each recognized student's session is resolved from their own
+        department/year/semester against the timetable on every recognition."""
         if not self.camera.start():
             return False
-        self.session_id = queries.get_or_create_today_session(user_id)
+        self._today = date.today().isoformat()
+        self._slot_session_cache = {}
+        self._fallback_session_id = None
+        self.session_id = None          # no longer eagerly created; resolved per-recognition
+        self._created_by_user_id = user_id
         self._stored_encodings = queries.get_all_encodings()
         self.total_enrolled = len(queries.list_students())
         self.present_students = {}
@@ -60,9 +72,42 @@ class SessionController:
         self._stored_encodings = queries.get_all_encodings()
         self.total_enrolled = len(queries.list_students())
 
+    def _resolve_session_for_student(self, student):
+        """Given a recognized student row, find/create the session for their current period."""
+        now = datetime.now()
+        today_str = now.date().isoformat()
+        if today_str != self._today:                      # midnight rollover while camera stays open
+            self._today = today_str
+            self._slot_session_cache = {}
+            self._fallback_session_id = None
+        dow = now.weekday()                                 # Monday=0, matches timetable_slots.day_of_week
+        time_str = now.strftime("%H:%M")
+        slot = queries.find_active_timetable_slot(
+            student["department"], student["year"], student["semester"], dow, time_str)
+        if slot is None:
+            if self._fallback_session_id is None:
+                self._fallback_session_id = queries.get_or_create_fallback_session(today_str, self._created_by_user_id)
+            return self._fallback_session_id
+        if slot["id"] not in self._slot_session_cache:
+            self._slot_session_cache[slot["id"]] = queries.get_or_create_slot_session(
+                slot, today_str, self._created_by_user_id)
+        return self._slot_session_cache[slot["id"]]
+
+    def _resolve_fallback_session(self):
+        """Session used for faces that can't be attributed to a student (unknown/spoof)."""
+        today_str = date.today().isoformat()
+        if today_str != self._today:
+            self._today = today_str
+            self._slot_session_cache = {}
+            self._fallback_session_id = None
+        if self._fallback_session_id is None:
+            self._fallback_session_id = queries.get_or_create_fallback_session(today_str, self._created_by_user_id)
+        return self._fallback_session_id
+
     def process_next_frame(self):
         """Reads one frame, runs detection/recognition per FRAME_SKIP policy.
-        Returns (annotated_bgr_frame, faces_found_count, newly_recognized_names) or (None, 0, []) if no frame."""
+        Returns (annotated_bgr_frame, faces_found_count, newly_recognized) or (None, 0, []) if no
+        frame, where newly_recognized is a list of (name, subject, section) tuples."""
         frame = self.camera.get_frame()
         if frame is None:
             return None, 0, []
@@ -96,7 +141,9 @@ class SessionController:
                         top, right, bottom, left = box
                         face_roi = small_frame[max(top, 0):bottom, max(left, 0):right]
                         if not self.liveness.is_live(face_roi):
-                            queries.log_spoof_attempt(self.session_id)
+                            spoof_sid = self._resolve_fallback_session()
+                            queries.log_spoof_attempt(spoof_sid)
+                            self.session_id = spoof_sid
                             self.spoof_count += 1
                             labels.append("Spoof?")
                             continue
@@ -118,14 +165,21 @@ class SessionController:
 
                         if streak >= config.ATTENDANCE_CONFIRM_STREAK and blinked:
                             labels.append(student["name"])
-                            is_new = queries.mark_present(self.session_id, student_id, distance)
+                            sid = self._resolve_session_for_student(student)
+                            is_new = queries.mark_present(sid, student_id, distance)
+                            self.session_id = sid
                             self.present_students[student_id] = student["name"]
                             if is_new:
-                                newly_recognized.append(student["name"])
+                                session_row = queries.get_session(sid)
+                                subject = session_row["subject"] if session_row else None
+                                section = session_row["section"] if session_row else None
+                                newly_recognized.append((student["name"], subject, section))
                         else:
                             labels.append(f"{student['name']} (confirming)")
                     else:
-                        queries.log_unknown(self.session_id, distance)
+                        unknown_sid = self._resolve_fallback_session()
+                        queries.log_unknown(unknown_sid, distance)
+                        self.session_id = unknown_sid
                         self.unknown_count += 1
                         labels.append("Unknown")
                 # Reset streaks/blink-tracking for students not seen this tick so a brief
@@ -160,16 +214,18 @@ class SessionController:
         return frame_bgr
 
     def manual_override(self, student_id: int, status: str):
-        queries.manual_override(self.session_id, student_id, status)
         student = queries.get_student(student_id)
+        sid = self._resolve_session_for_student(student)
+        queries.manual_override(sid, student_id, status)
+        self.session_id = sid
         if status in ("present", "manual"):
             self.present_students[student_id] = student["name"]
         elif student_id in self.present_students:
             del self.present_students[student_id]
 
     def stop_watching(self):
-        """Stops the camera/ML pipeline without finalizing absentees — the day-session stays
-        open so watching can resume later. Use close_day() to finalize absentees for everyone."""
+        """Stops the camera/ML pipeline without finalizing absentees — open sessions stay open
+        so watching can resume later. Use close_day() to finalize absentees for everyone."""
         self.camera.stop()
         self.detector.close()
         self.liveness.close()
@@ -177,9 +233,12 @@ class SessionController:
 
 
 def close_day():
-    """Finalizes absentees across all branches for today and ends the auto-attendance session.
-    Returns the closed session id, or None if no session was open."""
-    session_id = queries.close_day()
-    if session_id is not None and config.NOTIFY_ON_SESSION_END:
-        notifications.notify_session_absentees(session_id)
-    return session_id
+    """Finalizes absentees and ends every session still open today (one per subject/slot +
+    fallback). Returns the list of closed session ids."""
+    session_ids = queries.close_day()
+    for session_id in session_ids:
+        if config.NOTIFY_ON_SESSION_END:
+            notifications.notify_session_absentees(session_id)
+    if session_ids and config.NOTIFY_DEFAULTER_CHECK:
+        notifications.notify_low_attendance_students()
+    return session_ids

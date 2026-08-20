@@ -1,7 +1,9 @@
 import customtkinter as ctk
 
+from tkinter import simpledialog
+
 from config import APP_NAME, VERSION
-from services import auth
+from services import auth, totp
 from ui.components.toast import show_toast
 
 ACCENT = "#2563EB"
@@ -97,10 +99,24 @@ class LoginScreen(ctk.CTkFrame):
         if not username or not password:
             show_toast(self, "Enter username and password", "warning")
             return
-        user = auth.login(username, password)
+        try:
+            user = auth.login(username, password)
+        except auth.AccountLockedError as e:
+            show_toast(self, str(e), "error")
+            self.password_entry.delete(0, "end")
+            return
         if user is None:
             show_toast(self, "Invalid credentials or inactive account", "error")
             self.password_entry.delete(0, "end")
             return
+        if user["totp_enabled"]:
+            code = simpledialog.askstring("Two-Factor Authentication", "Enter your 6-digit authenticator code:", parent=self)
+            if not code or not totp.verify_code(user, code.strip()):
+                show_toast(self, "Invalid or missing authentication code", "error")
+                return
         self.app.set_current_user(user)
+        if user["must_change_password"]:
+            self.app.show_screen("HomeScreen")
+            self.app.prompt_forced_password_change(user)
+            return
         self.app.show_screen("HomeScreen")

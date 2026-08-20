@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - History</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history" class="active"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>History</h1>
+                <div class="who">
+                    <div class="who-meta">
+                        <div class="who-name">{{ student.name }}</div>
+                        <div class="who-sub">{{ student.roll_no }}</div>
+                    </div>
+                    <div class="avatar">{{ student.name[0]|upper }}</div>
+                </div>
+            </div>
+
+            <div class="grid-6">
+                <div class="icon-tile">
+                    <div class="badge badge-green">&#10003;</div>
+                    <div class="tile-label">Present</div>
+                    <div class="tile-value">{{ counts.present }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-red">&#10005;</div>
+                    <div class="tile-label">Absent</div>
+                    <div class="tile-value">{{ counts.absent }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-amber">&#9998;</div>
+                    <div class="tile-label">Manual</div>
+                    <div class="tile-value">{{ counts.manual }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-gray">?</div>
+                    <div class="tile-label">Unknown</div>
+                    <div class="tile-value">{{ counts.unknown }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-blue">&#128202;</div>
+                    <div class="tile-label">Total Records</div>
+                    <div class="tile-value">{{ counts.all }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-purple">&#128202;</div>
+                    <div class="tile-label">% Present</div>
+                    <div class="tile-value">{{ "%.0f"|format(counts.present / counts.all * 100 if counts.all else 0) }}%</div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:16px;">
+                <div class="filter-bar">
+                    <a href="/history?status=all&subject={{ active_subject }}" class="filter-chip {{ 'active' if active_status == 'all' }}">All ({{ counts.all }})</a>
+                    <a href="/history?status=present&subject={{ active_subject }}" class="filter-chip {{ 'active' if active_status == 'present' }}">Present ({{ counts.present }})</a>
+                    <a href="/history?status=absent&subject={{ active_subject }}" class="filter-chip {{ 'active' if active_status == 'absent' }}">Absent ({{ counts.absent }})</a>
+                    <a href="/history?status=manual&subject={{ active_subject }}" class="filter-chip {{ 'active' if active_status == 'manual' }}">Manual ({{ counts.manual }})</a>
+                    <a href="/history?status=unknown&subject={{ active_subject }}" class="filter-chip {{ 'active' if active_status == 'unknown' }}">Unknown ({{ counts.unknown }})</a>
+                </div>
+
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <form method="get" action="/history">
+                        <input type="hidden" name="status" value="{{ active_status }}">
+                        <select name="subject" onchange="this.form.submit()"
+                                style="width:200px; padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--page-bg); color:var(--text); font-size:0.86rem;">
+                            <option value="all" {{ "selected" if active_subject == "all" }}>All Subjects</option>
+                            {% for s in subjects %}
+                            <option value="{{ s }}" {{ "selected" if active_subject == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <input type="text" id="historySearch" class="search-input" style="flex:1; min-width:200px; margin-bottom:0;" placeholder="Search this page by subject or date...">
+                </div>
+            </div>
+
+            <div class="panel">
+                <div id="historyList">
+                {% for r in records %}
+                <div class="row" data-search="{{ ((r.subject or 'general') ~ ' ' ~ r.started_at) | lower }}">
+                    <div>
+                        <div class="row-title">{{ r.subject or "General" }}</div>
+                        <div class="row-sub">{{ r.started_at }}</div>
+                    </div>
+                    <span class="status-pill status-{{ r.status }}">{{ r.status }}</span>
+                </div>
+                {% else %}
+                <p class="empty-state">No attendance records match this filter.</p>
+                {% endfor %}
+                </div>
+            </div>
+            {% if total_pages > 1 %}
+            <div class="row" style="justify-content:center; gap:16px;">
+                {% if page > 1 %}<a href="/history?page={{ page - 1 }}&status={{ active_status }}&subject={{ active_subject }}" class="btn btn-outline">&laquo; Newer</a>{% endif %}
+                <span>Page {{ page }} of {{ total_pages }}</span>
+                {% if page < total_pages %}<a href="/history?page={{ page + 1 }}&status={{ active_status }}&subject={{ active_subject }}" class="btn btn-outline">Older &raquo;</a>{% endif %}
+            </div>
+            {% endif %}
+        </main>
+        <script>
+            document.getElementById('historySearch').addEventListener('input', function (e) {
+                var term = e.target.value.trim().toLowerCase();
+                document.querySelectorAll('#historyList [data-search]').forEach(function (row) {
+                    var haystack = row.getAttribute('data-search').toLowerCase();
+                    row.style.display = haystack.indexOf(term) === -1 ? 'none' : '';
+                });
+            });
+        </script>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history" class="active"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

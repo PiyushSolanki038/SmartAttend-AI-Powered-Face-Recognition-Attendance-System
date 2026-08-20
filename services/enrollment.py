@@ -13,6 +13,17 @@ class EnrollmentError(Exception):
     pass
 
 
+def _validate_student_fields(roll_no: str, name: str, year, semester):
+    if not roll_no or not roll_no.strip():
+        raise EnrollmentError("Roll number is required.")
+    if not name or not name.strip():
+        raise EnrollmentError("Name is required.")
+    if year is not None and not (1 <= int(year) <= 8):
+        raise EnrollmentError("Year must be between 1 and 8.")
+    if semester is not None and not (1 <= int(semester) <= 16):
+        raise EnrollmentError("Semester must be between 1 and 16.")
+
+
 def _encode_frame(detector, recognizer, frame_bgr, source_label: str):
     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     boxes = detector.detect(frame_rgb)
@@ -64,6 +75,7 @@ def encode_captured_frames(frames_bgr: list):
 
 
 def add_student(roll_no: str, name: str, department: str, year: int, semester: int, image_paths: list) -> int:
+    _validate_student_fields(roll_no, name, year, semester)
     averaged_encoding, individual_encodings = encode_images(image_paths)
     student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding)
     for enc in individual_encodings:
@@ -72,6 +84,7 @@ def add_student(roll_no: str, name: str, department: str, year: int, semester: i
 
 
 def add_student_from_frames(roll_no: str, name: str, department: str, year: int, semester: int, frames_bgr: list) -> int:
+    _validate_student_fields(roll_no, name, year, semester)
     averaged_encoding, individual_encodings = encode_captured_frames(frames_bgr)
     student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding)
     for enc in individual_encodings:
@@ -80,6 +93,7 @@ def add_student_from_frames(roll_no: str, name: str, department: str, year: int,
 
 
 def update_student_info(student_id: int, roll_no: str, name: str, department: str, year: int, semester: int):
+    _validate_student_fields(roll_no, name, year, semester)
     queries.update_student(student_id, roll_no, name, department, year, semester)
 
 

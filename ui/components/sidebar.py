@@ -5,7 +5,12 @@ NAV_ITEMS = [
     ("Enroll Student", "EnrollScreen", None),
     ("Live Attendance", "SessionScreen", None),
     ("Reports", "ReportsScreen", None),
+    ("Student Requests", "ApprovalsScreen", None),
+    ("Timetable", "TimetableScreen", None),
+    ("Engagement Analytics", "EngagementScreen", None),
     ("Manage Users", "UserManagementScreen", "admin"),
+    ("System Health", "SystemSettingsScreen", "admin"),
+    ("Audit Log", "AuditLogScreen", "admin"),
     ("Settings", "SettingsScreen", None),
 ]
 

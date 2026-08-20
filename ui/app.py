@@ -1,3 +1,5 @@
+from tkinter import messagebox
+
 import customtkinter as ctk
 
 from config import APP_NAME, COLOR_THEME, THEME
@@ -11,6 +13,13 @@ from ui.screens.reports import ReportsScreen
 from ui.screens.settings import SettingsScreen
 from ui.screens.login import LoginScreen
 from ui.screens.user_management import UserManagementScreen
+from ui.screens.approvals import ApprovalsScreen
+from ui.screens.timetable import TimetableScreen
+from ui.screens.system_settings import SystemSettingsScreen
+from ui.screens.audit_log import AuditLogScreen
+from ui.screens.engagement import EngagementScreen
+from services import backup_scheduler
+from services import session_autoclose
 
 ctk.set_appearance_mode(THEME)
 ctk.set_default_color_theme(COLOR_THEME)
@@ -18,7 +27,12 @@ ctk.set_default_color_theme(COLOR_THEME)
 # Screens restricted to specific roles; any screen not listed is open to all logged-in users.
 SCREEN_ROLES = {
     "UserManagementScreen": {"admin"},
+    "SystemSettingsScreen": {"admin"},
+    "AuditLogScreen": {"admin"},
 }
+
+BACKUP_POLL_INTERVAL_MS = 10 * 60 * 1000  # check every 10 minutes whether a scheduled backup is due
+SESSION_AUTOCLOSE_POLL_INTERVAL_MS = 60 * 1000   # check every minute - slot end times are HH:MM granularity
 
 
 class App(ctk.CTk):
@@ -39,12 +53,31 @@ class App(ctk.CTk):
         self._screen_area.pack(side="right", fill="both", expand=True)
 
         self._screens = {}
-        for ScreenClass in (LoginScreen, HomeScreen, EnrollScreen, SessionScreen, ReportsScreen, SettingsScreen, UserManagementScreen):
+        for ScreenClass in (LoginScreen, HomeScreen, EnrollScreen, SessionScreen, ReportsScreen, SettingsScreen,
+                            UserManagementScreen, ApprovalsScreen, TimetableScreen, SystemSettingsScreen,
+                            AuditLogScreen, EngagementScreen):
             screen = ScreenClass(self._screen_area, self)
             self._screens[ScreenClass.__name__] = screen
             screen.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.show_screen("LoginScreen")
+        self._poll_backup_schedule()
+        self._poll_session_autoclose()
+
+    def _poll_backup_schedule(self):
+        """Runs only while the desktop app is open — no OS-level cron, documented limitation."""
+        try:
+            backup_scheduler.run_scheduled_backup_if_due()
+        except Exception as exc:
+            print(f"scheduled backup check failed: {exc}")
+        self.after(BACKUP_POLL_INTERVAL_MS, self._poll_backup_schedule)
+
+    def _poll_session_autoclose(self):
+        try:
+            session_autoclose.close_expired_sessions_if_any()
+        except Exception as exc:
+            print(f"session autoclose check failed: {exc}")
+        self.after(SESSION_AUTOCLOSE_POLL_INTERVAL_MS, self._poll_session_autoclose)
 
     def set_current_user(self, user):
         self.current_user = user
@@ -90,6 +123,50 @@ class App(ctk.CTk):
         """Call after enrolling/editing/deleting a student so Live Attendance's running camera
         loop picks up the change immediately instead of needing an app restart."""
         self._screens["SessionScreen"].refresh_encodings()
+
+    def prompt_forced_password_change(self, user):
+        """Blocks the app behind a modal until the user sets a real password, for accounts
+        flagged must_change_password (default admin password, or a student's roll-number
+        default). Reused by the Settings screen's own "Change Password" button."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Set a New Password")
+        dialog.geometry("360x280")
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None)  # must not be dismissible without changing
+
+        ctk.CTkLabel(
+            dialog, text="For security, set a new password\nbefore continuing.",
+            font=ctk.CTkFont(size=13), justify="center",
+        ).pack(pady=(20, 16))
+
+        ctk.CTkLabel(dialog, text="New Password").pack(anchor="w", padx=30)
+        new_entry = ctk.CTkEntry(dialog, width=280, show="*")
+        new_entry.pack(padx=30, pady=(2, 12))
+
+        ctk.CTkLabel(dialog, text="Confirm New Password").pack(anchor="w", padx=30)
+        confirm_entry = ctk.CTkEntry(dialog, width=280, show="*")
+        confirm_entry.pack(padx=30, pady=(2, 12))
+
+        error_label = ctk.CTkLabel(dialog, text="", text_color="#E74C3C")
+        error_label.pack(pady=(0, 6))
+
+        def _submit():
+            new_password = new_entry.get()
+            confirm_password = confirm_entry.get()
+            if len(new_password) < 4:
+                error_label.configure(text="Password must be at least 4 characters.")
+                return
+            if new_password != confirm_password:
+                error_label.configure(text="Passwords do not match.")
+                return
+            auth.change_password(user["id"], new_password)
+            self.current_user = dict(user)
+            self.current_user["must_change_password"] = 0
+            dialog.grab_release()
+            dialog.destroy()
+
+        ctk.CTkButton(dialog, text="Set Password", command=_submit).pack(pady=6)
 
     def logout(self):
         auth.logout(self.current_user)

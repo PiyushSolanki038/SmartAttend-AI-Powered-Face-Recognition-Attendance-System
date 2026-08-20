@@ -1,14 +1,19 @@
 import json
 import os
+import secrets
 
 APP_NAME = "SmartAttend"
 VERSION = "1.0.0"
 
 BASE_DIR = os.path.join(os.path.expanduser("~"), ".smartattend")
+# DB_PATH: no longer used by the webportal or by db/connection.py (both now talk to Postgres
+# via DATABASE_URL — see db/connection.py, which is Postgres-only going forward). Left defined
+# here only in case any local/desktop-mode code still references it directly.
 DB_PATH = os.path.join(BASE_DIR, "smartattend.db")
 EXPORT_DIR = os.path.join(BASE_DIR, "exports")
 SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+SESSION_SECRET_PATH = os.path.join(BASE_DIR, "session_secret.key")
 
 # ML Settings
 CAMERA_INDEX = 0
@@ -38,10 +43,15 @@ DEFAULTER_THRESHOLD = 75.0  # attendance % below this is flagged as a defaulter
 LATE_THRESHOLD_MINUTES = 10  # minutes after session start beyond which a present mark counts as "late"
 
 # Notifications
-SMTP_HOST = ""
-SMTP_PORT = 587
-SMTP_USER = ""
-SMTP_PASSWORD = ""  # never persisted to settings.json — re-entered per app session for basic security
+# Env vars win when present (needed for the cloud-deployed webportal, which has no settings.json
+# UI to re-enter these in); falls back to the previous "" / 587 literals otherwise, which
+# load_settings() below can still override from settings.json for the desktop app.
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+# never persisted to settings.json — re-entered per app session for basic security (desktop
+# mode), or supplied via the SMTP_PASSWORD env var for cloud deployment (webportal).
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 NOTIFY_ON_SESSION_END = True
 NOTIFY_DEFAULTER_CHECK = True
 
@@ -79,6 +89,21 @@ def save_settings():
     data = {key: globals_dict[key] for key in _PERSISTED_KEYS}
     with open(SETTINGS_PATH, "w") as f:
         json.dump(data, f, indent=2)
+
+
+def get_session_secret() -> str:
+    """Returns a random secret persisted to disk on first call, instead of a hardcoded
+    string baked into the source (which would let anyone with the repo forge portal
+    session cookies). Reused across restarts so existing sessions stay valid."""
+    if os.path.exists(SESSION_SECRET_PATH):
+        with open(SESSION_SECRET_PATH, "r") as f:
+            secret = f.read().strip()
+        if secret:
+            return secret
+    secret = secrets.token_hex(32)
+    with open(SESSION_SECRET_PATH, "w") as f:
+        f.write(secret)
+    return secret
 
 
 load_settings()

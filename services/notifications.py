@@ -48,6 +48,27 @@ def check_and_notify_defaulters(threshold: float = None):
     return defaulters
 
 
+def notify_low_attendance_students(threshold: float = None):
+    """Emails every student below the threshold who has an email on file. Called after a day
+    closes so students find out the same day, not just when they check the portal."""
+    threshold = threshold if threshold is not None else config.DEFAULTER_THRESHOLD
+    defaulters = queries.get_defaulters(threshold)
+    sent = []
+    for row in defaulters:
+        student = queries.get_student(row["id"])
+        if student is None or not student["email"]:
+            continue
+        body = (
+            f"Hi {student['name']},\n\n"
+            f"Your current attendance is {row['percentage']:.1f}%, which is below the "
+            f"required {threshold:.0f}%. Please check the student portal for details.\n\n"
+            f"- SmartAttend"
+        )
+        if send_email(student["email"], "Low Attendance Alert", body):
+            sent.append(student["roll_no"])
+    return sent
+
+
 def notify_session_absentees(session_id: int):
     rows = queries.get_session_attendance(session_id)
     absentees = [r for r in rows if r["status"] == "absent"]

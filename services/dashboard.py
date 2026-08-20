@@ -25,7 +25,8 @@ def _attendance_by_date(subject_filter: str = None, department_filter: str = Non
     rows = queries.get_filtered_attendance(subject=subject_filter, department=department_filter)
     totals = defaultdict(lambda: [0, 0])  # date -> [present, total]
     for row in rows:
-        date_part = (row["started_at"] or "").split(" ")[0]
+        started_at = row["started_at"]
+        date_part = started_at.strftime("%Y-%m-%d") if started_at else ""
         if not date_part:
             continue
         totals[date_part][1] += 1
@@ -150,7 +151,8 @@ def render_advanced_charts(subject_filter: str = None, department_filter: str = 
     rows = queries.get_filtered_attendance(subject=subject_filter, department=department_filter)
     by_subject_date = defaultdict(lambda: defaultdict(lambda: [0, 0]))
     for row in rows:
-        date_part = (row["started_at"] or "").split(" ")[0]
+        started_at = row["started_at"]
+        date_part = started_at.strftime("%Y-%m-%d") if started_at else ""
         if not date_part:
             continue
         bucket = by_subject_date[row["subject"]][date_part]
@@ -176,3 +178,60 @@ def export_advanced_png(filepath: str, subject_filter: str = None, department_fi
     fig.savefig(filepath)
     plt.close(fig)
     return filepath
+
+
+def render_student_charts(student_id: int):
+    """Returns a Figure with two subplots scoped to a single student, for the portal's
+    Analytics page: their per-subject attendance % (bar) and their attendance trend over
+    time across all subjects (line) — the richer chart quality the desktop dashboard has,
+    made available to the student instead of only plain numbers."""
+    subjects = queries.get_student_subject_summary(student_id)
+    history = queries.get_student_history(student_id)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    names = [s["subject"] for s in subjects]
+    values = [s["percentage"] for s in subjects]
+    colors = ["#E74C3C" if v < DEFAULTER_THRESHOLD else "#1F6AA5" for v in values]
+    axes[0].bar(names, values, color=colors or "#1F6AA5")
+    axes[0].axhline(DEFAULTER_THRESHOLD, color="#F39C12", linestyle="--", linewidth=1,
+                     label=f"{DEFAULTER_THRESHOLD:.0f}% threshold")
+    axes[0].set_title("Your Attendance by Subject")
+    axes[0].set_ylabel("% Present")
+    axes[0].set_ylim(0, 100)
+    axes[0].tick_params(axis="x", rotation=30, labelsize=8)
+    axes[0].legend(fontsize=7)
+
+    # Trend: cumulative present-rate after each session, oldest to newest.
+    ordered = list(reversed(history))
+    running_present, running_total, trend = 0, 0, []
+    for row in ordered:
+        running_total += 1
+        if row["status"] in ("present", "manual"):
+            running_present += 1
+        trend.append(running_present / running_total * 100)
+    axes[1].plot(range(1, len(trend) + 1), trend, marker="o", markersize=3, color="#2ECC71")
+    axes[1].set_title("Your Attendance Trend")
+    axes[1].set_xlabel("Session # (oldest to newest)")
+    axes[1].set_ylabel("Cumulative % Present")
+    axes[1].set_ylim(0, 100)
+    if not trend:
+        axes[1].text(0.5, 0.5, "No sessions yet", ha="center", va="center", transform=axes[1].transAxes)
+
+    fig.tight_layout()
+    return fig
+
+
+def render_student_charts_base64(student_id: int) -> str:
+    """Same as render_student_charts but returns a base64 PNG data URI, ready to drop
+    straight into an <img src="..."> tag in the portal — avoids needing a static file
+    per student or a second network round-trip."""
+    import base64
+    from io import BytesIO
+
+    fig = render_student_charts(student_id)
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=110)
+    plt.close(fig)
+    buf.seek(0)
+    return "data:image/png;base64," + base64.b64encode(buf.read()).decode("ascii")

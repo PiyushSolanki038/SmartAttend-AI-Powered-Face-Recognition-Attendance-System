@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Timetable</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/timetable" class="active"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>Timetable</h1>
+                <div class="avatar">{{ student.name[0]|upper }}</div>
+            </div>
+
+            {% if next_class %}
+            <div class="panel" style="margin-bottom:16px; border-color:var(--accent);">
+                <div class="panel-title">{{ "Next Class (Today)" if next_class[2] else "Next Class" }}</div>
+                <div class="row">
+                    <div>
+                        <div class="row-title">{{ next_class[1].subject }}{% if next_class[1].section %} — {{ next_class[1].section }}{% endif %}</div>
+                        <div class="row-sub">{{ next_class[0] }} &middot; {{ next_class[1].faculty or "" }}</div>
+                    </div>
+                    <span class="status-pill status-present">{{ next_class[1].start_time }} - {{ next_class[1].end_time }}</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <input type="text" id="ttSearch" class="search-input" placeholder="Search by subject or faculty...">
+
+            <div id="ttList">
+            {% for day_idx, day_name, slots in schedule %}
+            <div class="panel" style="margin-bottom:14px; {{ 'border-color:var(--accent);' if day_idx == today_idx }}">
+                <div class="panel-title">
+                    {{ day_name }}
+                    {% if day_idx == today_idx %}<span class="status-pill status-present" style="margin-left:8px;">Today</span>{% endif %}
+                </div>
+                {% for slot in slots %}
+                <div class="row" data-search="{{ (slot.subject ~ ' ' ~ (slot.faculty or '')) | lower }}">
+                    <div>
+                        <div class="row-title">{{ slot.subject }}{% if slot.section %} — {{ slot.section }}{% endif %}</div>
+                        <div class="row-sub">{{ slot.faculty or "" }}</div>
+                    </div>
+                    <span class="status-pill status-unknown">{{ slot.start_time }} - {{ slot.end_time }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="panel"><p class="empty-state">No timetable has been set up for your class yet.</p></div>
+            {% endfor %}
+            </div>
+        </main>
+        <script>
+            document.getElementById('ttSearch').addEventListener('input', function (e) {
+                var term = e.target.value.trim().toLowerCase();
+                document.querySelectorAll('#ttList [data-search]').forEach(function (row) {
+                    var haystack = row.getAttribute('data-search').toLowerCase();
+                    row.style.display = haystack.indexOf(term) === -1 ? 'none' : '';
+                });
+            });
+        </script>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

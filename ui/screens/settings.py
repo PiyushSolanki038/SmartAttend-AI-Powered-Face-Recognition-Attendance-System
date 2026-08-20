@@ -1,9 +1,10 @@
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 
 import cv2
 import customtkinter as ctk
 
 import config
+from services import auth, totp
 
 
 class SettingsScreen(ctk.CTkFrame):
@@ -87,7 +88,60 @@ class SettingsScreen(ctk.CTkFrame):
             self.notify_defaulter_switch.select()
         self.notify_defaulter_switch.grid(row=7, column=0, columnspan=2, sticky="w", padx=10, pady=(6, 10))
 
-        ctk.CTkButton(self, text="Save Settings", command=self._save).pack(pady=20)
+        ctk.CTkButton(self, text="Save Settings", command=self._save).pack(pady=(20, 6))
+        ctk.CTkButton(self, text="Change My Password", fg_color="transparent", border_width=1,
+                      command=self._change_own_password).pack(pady=(0, 6))
+        ctk.CTkButton(self, text="Enable Two-Factor Authentication (Admin)", fg_color="transparent", border_width=1,
+                      command=self._enable_2fa).pack(pady=(0, 6))
+        ctk.CTkButton(self, text="Disable Two-Factor Authentication", fg_color="transparent", border_width=1,
+                      command=self._disable_2fa).pack(pady=(0, 20))
+
+    def _enable_2fa(self):
+        user = self.app.current_user
+        if user["role"] != "admin":
+            messagebox.showerror("Not Allowed", "Two-factor authentication enrollment is admin-only.")
+            return
+        secret, uri = totp.start_enrollment(user["id"])
+        messagebox.showinfo(
+            "Scan or enter this secret",
+            f"Add this secret to your authenticator app (Google Authenticator, Authy, etc.):\n\n{secret}\n\n"
+            f"Provisioning URI:\n{uri}",
+        )
+        code = simpledialog.askstring("Confirm Code", "Enter the 6-digit code from your app:", parent=self)
+        if not code:
+            return
+        try:
+            totp.confirm_enrollment(user["id"], secret, code.strip())
+        except totp.TOTPError as e:
+            messagebox.showerror("Verification Failed", str(e))
+            return
+        messagebox.showinfo("Enabled", "Two-factor authentication is now enabled for your account.")
+
+    def _disable_2fa(self):
+        user = self.app.current_user
+        totp.disable_totp(user["id"])
+        messagebox.showinfo("Disabled", "Two-factor authentication has been disabled.")
+
+    def _change_own_password(self):
+        user = self.app.current_user
+        current = simpledialog.askstring("Change Password", "Current password:", show="*", parent=self)
+        if current is None:
+            return
+        if not auth.verify_password(current, user["salt"], user["password_hash"]):
+            messagebox.showerror("Incorrect Password", "Current password is incorrect.")
+            return
+        new_password = simpledialog.askstring("Change Password", "New password:", show="*", parent=self)
+        if not new_password:
+            return
+        if len(new_password) < 4:
+            messagebox.showerror("Too Short", "New password must be at least 4 characters.")
+            return
+        confirm = simpledialog.askstring("Change Password", "Confirm new password:", show="*", parent=self)
+        if new_password != confirm:
+            messagebox.showerror("Mismatch", "New passwords do not match.")
+            return
+        auth.change_password(user["id"], new_password)
+        messagebox.showinfo("Success", "Password changed successfully.")
 
     def _detect_cameras(self, max_check=4):
         available = []

@@ -38,9 +38,9 @@ def export_pdf(filepath: str, subject: str = None, section: str = None,
     row_colors = [None]
     present_count = absent_count = total_count = 0
     for row in rows:
-        started = row["started_at"] or ""
-        date_part = started.split(" ")[0] if started else ""
-        time_part = started.split(" ")[1] if " " in started else ""
+        started = row["started_at"]
+        date_part = started.strftime("%Y-%m-%d") if started else ""
+        time_part = started.strftime("%H:%M:%S") if started else ""
         status = row["status"] or ""
         table_data.append([
             row["roll_no"] or "--", row["name"] or "Unknown", row["department"] or "--",
@@ -83,6 +83,48 @@ def export_pdf(filepath: str, subject: str = None, section: str = None,
         buf.seek(0)
         elements.append(Spacer(1, 16))
         elements.append(Image(buf, width=480, height=384))
+
+    doc.build(elements)
+    return filepath
+
+
+def export_student_pdf(filepath: str, student, subjects: list, overall_pct: float,
+                        total_present: int, total_sessions: int):
+    """Single-student attendance report for the student portal's download button."""
+    doc = SimpleDocTemplate(filepath, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph("SmartAttend - Attendance Report", styles["Title"]),
+        Paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]),
+        Spacer(1, 8),
+        Paragraph(f"<b>Name:</b> {student['name']} &nbsp;&nbsp; <b>Roll No:</b> {student['roll_no']}", styles["Normal"]),
+        Paragraph(f"<b>Department:</b> {student['department'] or '--'} &nbsp;&nbsp; "
+                  f"<b>Year/Sem:</b> {student['year'] or '--'} / {student['semester'] or '--'}", styles["Normal"]),
+        Spacer(1, 12),
+        Paragraph(f"<b>Overall Attendance:</b> {overall_pct:.1f}% ({total_present}/{total_sessions} sessions)",
+                  styles["Normal"]),
+        Spacer(1, 12),
+    ]
+
+    table_data = [["Subject", "Present", "Total", "Percentage"]]
+    row_colors = [None]
+    for s in subjects:
+        table_data.append([s["subject"], str(s["present"]), str(s["total"]), f"{s['percentage']:.1f}%"])
+        row_colors.append(STATUS_COLOR["absent"] if s["percentage"] < 75 else STATUS_COLOR["present"])
+
+    table = Table(table_data, repeatRows=1)
+    style_cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F6AA5")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ]
+    for idx, color in enumerate(row_colors):
+        if color:
+            style_cmds.append(("BACKGROUND", (0, idx), (-1, idx), color))
+    table.setStyle(TableStyle(style_cmds))
+    elements.append(table)
 
     doc.build(elements)
     return filepath

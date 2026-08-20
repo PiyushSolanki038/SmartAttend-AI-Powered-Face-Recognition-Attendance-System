@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Profile</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/profile" class="active"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>Profile</h1>
+                <div class="avatar">{{ student.name[0]|upper }}</div>
+            </div>
+
+            <div class="grid-3">
+                <div class="icon-tile">
+                    <div class="badge badge-purple">&#127942;</div>
+                    <div class="tile-label">Class Rank</div>
+                    <div class="tile-value">{{ "#%d"|format(rank) if rank else "--" }}{% if rank_total %}<span style="font-size:0.7rem; color:var(--text-dim);"> / {{ rank_total }}</span>{% endif %}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-amber">&#128293;</div>
+                    <div class="tile-label">Streak</div>
+                    <div class="tile-value">{{ streak }}</div>
+                </div>
+                <div class="icon-tile">
+                    <div class="badge badge-green">&#128202;</div>
+                    <div class="tile-label">Overall Attendance</div>
+                    <div class="tile-value">{{ "%.0f"|format(overall_pct) }}%</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="panel">
+                    <div class="panel-title">Student Details</div>
+                    <div class="row"><span class="row-title">Name</span><span>{{ student.name }}</span></div>
+                    <div class="row"><span class="row-title">Roll No</span><span>{{ student.roll_no }}</span></div>
+                    <div class="row"><span class="row-title">Department</span><span>{{ student.department or "--" }}</span></div>
+                    <div class="row"><span class="row-title">Year / Semester</span><span>{{ student.year or "--" }} / {{ student.semester or "--" }}</span></div>
+                    <div class="row"><span class="row-title">Last Login</span><span>{{ last_login or "This is your first login" }}</span></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">Email (for low-attendance alerts)</div>
+                    {% if saved %}<div class="success-msg">Saved.</div>{% endif %}
+                    <form method="post" action="/profile">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="email" name="email" placeholder="you@example.com" value="{{ student.email or '' }}">
+                        <button type="submit">Save Email</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <a href="/dashboard" class="filter-chip">&#128202; Dashboard</a>
+                <a href="/history" class="filter-chip">&#128203; History</a>
+                <a href="/analytics" class="filter-chip">&#128201; Analytics</a>
+                <a href="/requests" class="filter-chip">&#128172; Requests</a>
+                <a href="/report.pdf" class="filter-chip">&#128190; Download PDF</a>
+            </div>
+
+            <a href="/change-password" class="btn btn-outline">Change Password</a>
+        </main>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile" class="active"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+</body>
+</html>

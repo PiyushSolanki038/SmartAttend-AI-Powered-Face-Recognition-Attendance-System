@@ -3,7 +3,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from db import queries
-from services import auth
+from services import audit, auth
 from ui.components.student_table import StudentTable
 from ui.components.toast import show_toast
 
@@ -17,6 +17,8 @@ class UserManagementScreen(ctk.CTkFrame):
         header.pack(fill="x", padx=20, pady=(20, 10))
         ctk.CTkButton(header, text="< Back", width=80, command=lambda: self.app.show_screen("HomeScreen")).pack(side="left")
         ctk.CTkLabel(header, text="Manage Users", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=20)
+        ctk.CTkLabel(header, text="Faculty & Admin accounts only — student portal logins are managed via Enroll Student",
+                     text_color="gray", font=ctk.CTkFont(size=11)).pack(side="left")
 
         form = ctk.CTkFrame(self)
         form.pack(padx=20, pady=10, fill="x")
@@ -34,7 +36,7 @@ class UserManagementScreen(ctk.CTkFrame):
         self.password_entry.grid(row=1, column=1, padx=8, pady=8)
 
         ctk.CTkLabel(form, text="Role").grid(row=1, column=2, padx=8, pady=8, sticky="e")
-        self.role_dropdown = ctk.CTkOptionMenu(form, values=["faculty", "admin"])
+        self.role_dropdown = ctk.CTkOptionMenu(form, values=["faculty", "admin", "hod", "coordinator"])
         self.role_dropdown.grid(row=1, column=3, padx=8, pady=8, sticky="w")
 
         ctk.CTkButton(form, text="Create User", command=self._create_user).grid(row=0, column=4, rowspan=2, padx=12, pady=8)
@@ -59,7 +61,7 @@ class UserManagementScreen(ctk.CTkFrame):
         self._refresh()
 
     def _refresh(self):
-        self._users = queries.list_users()
+        self._users = queries.list_staff_users()
         rows = [
             (u["id"], u["username"], u["role"], u["full_name"] or "--", "Yes" if u["is_active"] else "No")
             for u in self._users
@@ -82,7 +84,9 @@ class UserManagementScreen(ctk.CTkFrame):
         if queries.get_user_by_username(username):
             messagebox.showerror("Duplicate", "That username already exists.")
             return
-        auth.create_user(username, password, role, full_name or None)
+        new_id = auth.create_user(username, password, role, full_name or None)
+        actor_id = self.app.current_user["id"] if self.app.current_user else None
+        audit.log_action(actor_id, "user_created", "user", new_id, details=f"username={username} role={role}")
         self.username_entry.delete(0, "end")
         self.password_entry.delete(0, "end")
         self.fullname_entry.delete(0, "end")
@@ -100,6 +104,9 @@ class UserManagementScreen(ctk.CTkFrame):
             messagebox.showerror("Not Allowed", "You cannot deactivate your own active account.")
             return
         queries.set_user_active(self._selected_user_id, not user["is_active"])
+        actor_id = self.app.current_user["id"] if self.app.current_user else None
+        audit.log_action(actor_id, "user_active_toggled", "user", self._selected_user_id,
+                          details=f"now_active={not user['is_active']}")
         self._refresh()
 
     def _delete_user(self):
@@ -111,7 +118,10 @@ class UserManagementScreen(ctk.CTkFrame):
             return
         if not messagebox.askyesno("Confirm Delete", "Delete this user account? This cannot be undone."):
             return
+        actor_id = self.app.current_user["id"] if self.app.current_user else None
+        deleted_id = self._selected_user_id
         queries.delete_user(self._selected_user_id)
+        audit.log_action(actor_id, "user_deleted", "user", deleted_id)
         self._selected_user_id = None
         self.selected_label.configure(text="No user selected")
         self._refresh()

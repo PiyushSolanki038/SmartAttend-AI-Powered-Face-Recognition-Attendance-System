@@ -45,9 +45,9 @@ def export_excel(filepath: str, subject: str = None, section: str = None, start_
 
     row_idx = header_row + 1
     for row in rows:
-        started = row["started_at"] or ""
-        date_part = started.split(" ")[0] if started else ""
-        time_part = started.split(" ")[1] if " " in started else ""
+        started = row["started_at"]
+        date_part = started.strftime("%Y-%m-%d") if started else ""
+        time_part = started.strftime("%H:%M:%S") if started else ""
         status = row["status"] or ""
 
         ws.cell(row=row_idx, column=1, value=row["roll_no"])

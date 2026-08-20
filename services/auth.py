@@ -132,7 +132,17 @@ def request_password_reset(email_or_username: str, base_url: str) -> bool:
         f"Reset your password here (valid {PASSWORD_RESET_TOKEN_VALIDITY_MINUTES} minutes):\n{reset_link}\n\n"
         f"If you didn't request this, you can ignore this email."
     )
-    return send_email(email, "SmartAttend Password Reset", body)
+    from services.notifications import render_email_html
+    html_body = render_email_html(
+        heading="Reset your password 🔑",
+        paragraphs=[
+            "A password reset was requested for your SmartAttend account. Click the button "
+            f"below to set a new one — this link is valid for {PASSWORD_RESET_TOKEN_VALIDITY_MINUTES} minutes.",
+            "If you didn't request this, you can safely ignore this email.",
+        ],
+        button={"text": "Reset Password", "url": reset_link},
+    )
+    return send_email(email, "SmartAttend Password Reset", body, html_body)
 
 
 def reset_password_with_token(raw_token: str, new_password: str):

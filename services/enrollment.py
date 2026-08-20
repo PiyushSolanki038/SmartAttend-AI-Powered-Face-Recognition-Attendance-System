@@ -82,7 +82,7 @@ def _send_welcome_email(student_id: int, roll_no: str, name: str, email: str) ->
     if not email:
         return False
     from services.auth import create_student_login
-    from services.notifications import send_email
+    from services.notifications import render_email_html, send_email
 
     temp_password = create_student_login(student_id, roll_no, full_name=name)
     if temp_password is None:
@@ -96,7 +96,16 @@ def _send_welcome_email(student_id: int, roll_no: str, name: str, email: str) ->
         f"You'll be asked to set a new password the first time you log in.\n\n"
         f"- SmartAttend"
     )
-    return send_email(email, "Welcome to SmartAttend — Your Portal Login", body)
+    html_body = render_email_html(
+        heading=f"Welcome, {name} 👋",
+        paragraphs=[
+            "You've been enrolled in SmartAttend. Use the credentials below to log in to the "
+            "student portal and keep track of your attendance.",
+        ],
+        credentials={"Username": roll_no, "Temporary Password": temp_password},
+        note="You'll be asked to set a new password the first time you log in.",
+    )
+    return send_email(email, "Welcome to SmartAttend — Your Portal Login", body, html_body)
 
 
 def add_student(roll_no: str, name: str, department: str, year: int, semester: int, image_paths: list,

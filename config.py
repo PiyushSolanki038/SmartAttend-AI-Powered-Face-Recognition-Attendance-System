@@ -47,7 +47,10 @@ LATE_THRESHOLD_MINUTES = 10  # minutes after session start beyond which a presen
 # UI to re-enter these in); falls back to the previous "" / 587 literals otherwise, which
 # load_settings() below can still override from settings.json for the desktop app.
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+# "or 587" (not a dict default) because Vercel sets a blank-in-dashboard env var to "" rather
+# than leaving it unset — os.environ.get("SMTP_PORT", 587) would still return "" in that case,
+# and int("") crashes the whole import.
+SMTP_PORT = int(os.environ.get("SMTP_PORT") or 587)
 SMTP_USER = os.environ.get("SMTP_USER", "")
 # never persisted to settings.json — re-entered per app session for basic security (desktop
 # mode), or supplied via the SMTP_PASSWORD env var for cloud deployment (webportal).

@@ -15,6 +15,13 @@ from ui.components.toast import show_toast
 AUTO_CAPTURE_TARGET = 5
 AUTO_CAPTURE_INTERVAL_MS = 700  # minimum gap between auto-captured frames, so the 5 shots vary slightly
 
+# Seed options for the Department combo box — it's still editable (CTkComboBox, not a fixed
+# CTkOptionMenu) since a college's actual department names aren't hardcoded anywhere in this
+# codebase; whatever's already in the DB is merged in on top of these so the list grows with use.
+DEFAULT_DEPARTMENTS = ["CE", "IT", "CSE", "ECE", "EE", "ME", "Civil"]
+YEAR_OPTIONS = ["1", "2", "3", "4"]
+SEMESTER_OPTIONS = [str(n) for n in range(1, 9)]
+
 
 class EnrollScreen(ctk.CTkFrame):
     def __init__(self, master, app):
@@ -41,9 +48,9 @@ class EnrollScreen(ctk.CTkFrame):
 
         self.roll_entry = self._labeled_entry(form, "Roll Number")
         self.name_entry = self._labeled_entry(form, "Name")
-        self.dept_entry = self._labeled_entry(form, "Department")
-        self.year_entry = self._labeled_entry(form, "Year")
-        self.semester_entry = self._labeled_entry(form, "Semester")
+        self.dept_entry = self._labeled_combo(form, "Department", self._department_options())
+        self.year_entry = self._labeled_dropdown(form, "Year", YEAR_OPTIONS)
+        self.semester_entry = self._labeled_dropdown(form, "Semester", SEMESTER_OPTIONS)
 
         self.photo_count_label = ctk.CTkLabel(form, text="Photos selected: 0")
         self.photo_count_label.pack(pady=(10, 5), anchor="w")
@@ -83,6 +90,27 @@ class EnrollScreen(ctk.CTkFrame):
         entry = ctk.CTkEntry(parent, width=220)
         entry.pack(pady=(0, 8), padx=5)
         return entry
+
+    def _labeled_dropdown(self, parent, label_text, values):
+        ctk.CTkLabel(parent, text=label_text).pack(anchor="w", padx=5)
+        dropdown = ctk.CTkOptionMenu(parent, values=values, width=220)
+        dropdown.set("")
+        dropdown.pack(pady=(0, 8), padx=5)
+        return dropdown
+
+    def _labeled_combo(self, parent, label_text, values):
+        """Like _labeled_dropdown, but editable (CTkComboBox) — department names aren't a
+        fixed enum, so this offers the common/known ones without blocking a new one."""
+        ctk.CTkLabel(parent, text=label_text).pack(anchor="w", padx=5)
+        combo = ctk.CTkComboBox(parent, values=values, width=220)
+        combo.set("")
+        combo.pack(pady=(0, 8), padx=5)
+        return combo
+
+    def _department_options(self):
+        known = [d for d in queries.get_distinct_departments() if d]
+        merged = list(dict.fromkeys(DEFAULT_DEPARTMENTS + known))  # de-duped, order preserved
+        return merged
 
     # ---------- Photo selection (file picker) ----------
 
@@ -283,11 +311,14 @@ class EnrollScreen(ctk.CTkFrame):
         self.photo_count_label.configure(text="Photos selected: 0")
         for widget in self.thumbnail_frame.winfo_children():
             widget.destroy()
-        for entry in (self.roll_entry, self.name_entry, self.dept_entry, self.year_entry, self.semester_entry):
+        for entry in (self.roll_entry, self.name_entry):
             entry.delete(0, "end")
+        self.dept_entry.set("")
+        self.year_entry.set("")
+        self.semester_entry.set("")
         self.submit_btn.configure(text="Add Student")
 
-    def _edit_student(self, student_id, roll_no, name, department):
+    def _edit_student(self, student_id, roll_no, name, department, year=None, semester=None):
         self._editing_student_id = student_id
         self._image_paths = []
         self._captured_frames = []
@@ -298,8 +329,10 @@ class EnrollScreen(ctk.CTkFrame):
         self.roll_entry.insert(0, roll_no)
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, name)
-        self.dept_entry.delete(0, "end")
-        self.dept_entry.insert(0, department or "")
+        self.dept_entry.configure(values=self._department_options())
+        self.dept_entry.set(department or "")
+        self.year_entry.set(str(year) if year else "")
+        self.semester_entry.set(str(semester) if semester else "")
         self.submit_btn.configure(text="Save Changes")
 
     def _delete_student(self, student_id, name):
@@ -348,7 +381,8 @@ class EnrollScreen(ctk.CTkFrame):
             pct_label.grid(row=row_idx, column=3, padx=8, pady=2, sticky="w")
             edit_btn = ctk.CTkButton(
                 self.table, text="Edit", width=60,
-                command=lambda sid=s["id"], r=s["roll_no"], n=s["name"], d=s["department"]: self._edit_student(sid, r, n, d),
+                command=lambda sid=s["id"], r=s["roll_no"], n=s["name"], d=s["department"], y=s["year"], sem=s["semester"]:
+                    self._edit_student(sid, r, n, d, y, sem),
             )
             edit_btn.grid(row=row_idx, column=4, padx=4, pady=2)
             delete_btn = ctk.CTkButton(
@@ -359,6 +393,7 @@ class EnrollScreen(ctk.CTkFrame):
             self.table._row_widgets.extend([roll_label, name_label, dept_label, pct_label, edit_btn, delete_btn])
 
     def on_show(self):
+        self.dept_entry.configure(values=self._department_options())
         self._refresh_table()
 
     def on_close(self):

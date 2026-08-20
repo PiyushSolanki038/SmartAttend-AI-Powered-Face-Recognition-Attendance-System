@@ -11,11 +11,13 @@ logger = logging.getLogger(__name__)
 
 # ---------- Students ----------
 
-def insert_student(roll_no: str, name: str, department: str, year: int, semester: int, encoding: np.ndarray) -> int:
+def insert_student(roll_no: str, name: str, department: str, year: int, semester: int, encoding: np.ndarray,
+                    email: str = None) -> int:
     conn = get_connection()
     cur = conn.execute(
-        "INSERT INTO students (roll_no, name, department, year, semester, encoding) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-        (roll_no, name, department, year, semester, pickle.dumps(encoding)),
+        "INSERT INTO students (roll_no, name, department, year, semester, encoding, email) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+        (roll_no, name, department, year, semester, pickle.dumps(encoding), email),
     )
     conn.commit()
     return cur.fetchone()["id"]

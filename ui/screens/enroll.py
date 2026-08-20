@@ -48,6 +48,7 @@ class EnrollScreen(ctk.CTkFrame):
 
         self.roll_entry = self._labeled_entry(form, "Roll Number")
         self.name_entry = self._labeled_entry(form, "Name")
+        self.email_entry = self._labeled_entry(form, "Email (optional — sends portal login)")
         self.dept_entry = self._labeled_combo(form, "Department", self._department_options())
         self.year_entry = self._labeled_dropdown(form, "Year", YEAR_OPTIONS)
         self.semester_entry = self._labeled_dropdown(form, "Semester", SEMESTER_OPTIONS)
@@ -261,6 +262,7 @@ class EnrollScreen(ctk.CTkFrame):
     def _submit(self):
         roll_no = self.roll_entry.get().strip()
         name = self.name_entry.get().strip()
+        email = self.email_entry.get().strip() or None
         department = self.dept_entry.get().strip()
         year = self.year_entry.get().strip()
         semester = self.semester_entry.get().strip()
@@ -286,13 +288,22 @@ class EnrollScreen(ctk.CTkFrame):
                 show_toast(self, f"{name} updated successfully", "success")
             else:
                 if self._captured_frames:
-                    enrollment.add_student_from_frames(roll_no, name, department, year_val, semester_val, self._captured_frames)
+                    _, email_sent = enrollment.add_student_from_frames(
+                        roll_no, name, department, year_val, semester_val, self._captured_frames, email)
                 elif self._image_paths:
-                    enrollment.add_student(roll_no, name, department, year_val, semester_val, self._image_paths)
+                    _, email_sent = enrollment.add_student(
+                        roll_no, name, department, year_val, semester_val, self._image_paths, email)
                 else:
                     messagebox.showerror("Missing Photos", "Please select or capture 3-5 face photos.")
                     return
-                show_toast(self, f"{name} enrolled successfully", "success")
+                if email:
+                    if email_sent:
+                        show_toast(self, f"{name} enrolled — login emailed to {email}", "success")
+                    else:
+                        show_toast(self, f"{name} enrolled, but the welcome email could not be sent"
+                                          f" (check SMTP settings)", "warning")
+                else:
+                    show_toast(self, f"{name} enrolled successfully", "success")
         except enrollment.EnrollmentError as e:
             messagebox.showerror("Enrollment Failed", str(e))
             return
@@ -311,7 +322,7 @@ class EnrollScreen(ctk.CTkFrame):
         self.photo_count_label.configure(text="Photos selected: 0")
         for widget in self.thumbnail_frame.winfo_children():
             widget.destroy()
-        for entry in (self.roll_entry, self.name_entry):
+        for entry in (self.roll_entry, self.name_entry, self.email_entry):
             entry.delete(0, "end")
         self.dept_entry.set("")
         self.year_entry.set("")
@@ -329,6 +340,7 @@ class EnrollScreen(ctk.CTkFrame):
         self.roll_entry.insert(0, roll_no)
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, name)
+        self.email_entry.delete(0, "end")  # not edited here — enrollment email is a one-time send
         self.dept_entry.configure(values=self._department_options())
         self.dept_entry.set(department or "")
         self.year_entry.set(str(year) if year else "")

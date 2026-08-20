@@ -73,6 +73,23 @@ def create_user(username: str, password: str, role: str, full_name: str = None) 
     return queries.insert_user(username, digest, salt, role, full_name)
 
 
+def create_student_login(student_id: int, roll_no: str, full_name: str = None):
+    """Creates a portal login for a newly enrolled student with a random temporary password
+    (not the guessable roll-number default used by webportal/auth_backfill.py's bulk backfill),
+    flagged must_change_password. Returns the plaintext temp password — this is the only chance
+    to see it, so the caller is responsible for delivering it (e.g. via email). Returns None
+    without creating anything if a login already exists for this student (e.g. auth_backfill
+    beat this to it) — issuing a second temp password would silently invalidate one the
+    student might already be using."""
+    if queries.get_user_by_student_id(student_id) is not None:
+        return None
+    temp_password = secrets.token_urlsafe(9)
+    digest, salt = hash_password(temp_password)
+    user_id = queries.insert_student_user(roll_no, digest, salt, student_id, full_name=full_name)
+    queries.update_user_password(user_id, digest, salt, must_change_password=True)
+    return temp_password
+
+
 def change_password(user_id: int, new_password: str):
     digest, salt = hash_password(new_password)
     queries.update_user_password(user_id, digest, salt, must_change_password=False)

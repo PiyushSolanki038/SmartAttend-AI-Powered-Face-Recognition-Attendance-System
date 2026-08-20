@@ -74,22 +74,51 @@ def encode_captured_frames(frames_bgr: list):
     return recognizer.average_encoding(encodings), encodings
 
 
-def add_student(roll_no: str, name: str, department: str, year: int, semester: int, image_paths: list) -> int:
+def _send_welcome_email(student_id: int, roll_no: str, name: str, email: str) -> bool:
+    """Creates the student's portal login and emails them the username + temp password.
+    Returns False (without raising) if there's no email, login creation was skipped (a login
+    already existed), or the email failed to send (e.g. SMTP not configured) — enrollment
+    itself must not fail just because the welcome email couldn't go out."""
+    if not email:
+        return False
+    from services.auth import create_student_login
+    from services.notifications import send_email
+
+    temp_password = create_student_login(student_id, roll_no, full_name=name)
+    if temp_password is None:
+        return False
+    body = (
+        f"Hi {name},\n\n"
+        f"You've been enrolled in SmartAttend. Use these credentials to log in to the "
+        f"student portal and check your attendance:\n\n"
+        f"Username: {roll_no}\n"
+        f"Temporary Password: {temp_password}\n\n"
+        f"You'll be asked to set a new password the first time you log in.\n\n"
+        f"- SmartAttend"
+    )
+    return send_email(email, "Welcome to SmartAttend — Your Portal Login", body)
+
+
+def add_student(roll_no: str, name: str, department: str, year: int, semester: int, image_paths: list,
+                 email: str = None):
     _validate_student_fields(roll_no, name, year, semester)
     averaged_encoding, individual_encodings = encode_images(image_paths)
-    student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding)
+    student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding, email)
     for enc in individual_encodings:
         queries.insert_student_encoding(student_id, enc, source="enrollment")
-    return student_id
+    email_sent = _send_welcome_email(student_id, roll_no, name, email)
+    return student_id, email_sent
 
 
-def add_student_from_frames(roll_no: str, name: str, department: str, year: int, semester: int, frames_bgr: list) -> int:
+def add_student_from_frames(roll_no: str, name: str, department: str, year: int, semester: int, frames_bgr: list,
+                             email: str = None):
     _validate_student_fields(roll_no, name, year, semester)
     averaged_encoding, individual_encodings = encode_captured_frames(frames_bgr)
-    student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding)
+    student_id = queries.insert_student(roll_no, name, department, year, semester, averaged_encoding, email)
     for enc in individual_encodings:
         queries.insert_student_encoding(student_id, enc, source="webcam")
-    return student_id
+    email_sent = _send_welcome_email(student_id, roll_no, name, email)
+    return student_id, email_sent
 
 
 def update_student_info(student_id: int, roll_no: str, name: str, department: str, year: int, semester: int):

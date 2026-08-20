@@ -55,9 +55,16 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 NOTIFY_ON_SESSION_END = True
 NOTIFY_DEFAULTER_CHECK = True
 
-os.makedirs(BASE_DIR, exist_ok=True)
-os.makedirs(EXPORT_DIR, exist_ok=True)
-os.makedirs(BACKUP_DIR, exist_ok=True)
+# Best-effort: on a read-only serverless filesystem (e.g. Vercel), the home directory may not
+# be writable at all. The desktop app needs these directories to exist; the deployed webportal
+# doesn't touch DB_PATH/EXPORT_DIR/BACKUP_DIR at all (Postgres-only), so a failure here should
+# not crash the whole process on import.
+try:
+    os.makedirs(BASE_DIR, exist_ok=True)
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+except OSError:
+    pass
 
 _PERSISTED_KEYS = [
     "CAMERA_INDEX", "FRAME_SKIP", "TOLERANCE", "MIN_ENCODINGS",
@@ -92,17 +99,25 @@ def save_settings():
 
 
 def get_session_secret() -> str:
-    """Returns a random secret persisted to disk on first call, instead of a hardcoded
-    string baked into the source (which would let anyone with the repo forge portal
-    session cookies). Reused across restarts so existing sessions stay valid."""
+    """Returns a stable secret for signing portal session cookies. Prefers the SESSION_SECRET
+    env var — required on a serverless deploy (e.g. Vercel), where the filesystem is read-only
+    or reset on every cold start, so a file-persisted secret would regenerate constantly and
+    invalidate every logged-in session. Falls back to a secret persisted to disk (desktop /
+    single-machine deployments, where the filesystem is real and stays around)."""
+    env_secret = os.environ.get("SESSION_SECRET")
+    if env_secret:
+        return env_secret
     if os.path.exists(SESSION_SECRET_PATH):
         with open(SESSION_SECRET_PATH, "r") as f:
             secret = f.read().strip()
         if secret:
             return secret
     secret = secrets.token_hex(32)
-    with open(SESSION_SECRET_PATH, "w") as f:
-        f.write(secret)
+    try:
+        with open(SESSION_SECRET_PATH, "w") as f:
+            f.write(secret)
+    except OSError:
+        pass  # read-only filesystem — the secret still works for this process's lifetime
     return secret
 
 

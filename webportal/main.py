@@ -39,8 +39,12 @@ app.add_middleware(
     max_age=SESSION_TIMEOUT_SECONDS,
     same_site="lax",
 )
-app.mount("/static", StaticFiles(directory="webportal/static"), name="static")
-templates = Jinja2Templates(directory="webportal/templates")
+# Absolute, __file__-relative paths rather than "webportal/static" — relative paths only
+# resolve correctly if the process cwd happens to be the repo root, which isn't guaranteed
+# under every deploy target (e.g. a serverless runtime's working directory).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+app.mount("/static", StaticFiles(directory=os.path.join(_HERE, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(_HERE, "templates"))
 app.include_router(api_router)
 
 

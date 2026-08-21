@@ -35,6 +35,15 @@ def _build_connection() -> "psycopg2.extensions.connection":
         )
     database_url = _ensure_sslmode(database_url)
     conn = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
+    # Autocommit: every db/queries.py write already calls conn.commit() explicitly, but plenty
+    # of read-only routes (any GET that only SELECTs) never do — without autocommit, psycopg2
+    # opens an implicit transaction on the very first statement and leaves it open ("idle in
+    # transaction") until something eventually commits it, which on a long-lived warm serverless
+    # connection can sit for the connection's entire lifetime. An idle-in-transaction connection
+    # holds locks that block unrelated DDL (e.g. `ALTER TABLE ... ADD COLUMN`) indefinitely, and
+    # more generally is bad for the DB (blocks autovacuum, etc). Autocommit makes every statement
+    # its own implicit transaction, so a read commits itself the instant it finishes.
+    conn.autocommit = True
     return conn
 
 

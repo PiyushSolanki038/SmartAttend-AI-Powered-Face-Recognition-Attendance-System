@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS students (
     semester    INTEGER,
     encoding    BYTEA NOT NULL,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    email       TEXT
+    email       TEXT,
+    phone       TEXT
 );
 """
 
@@ -282,6 +283,10 @@ def init_db_postgres():
     # So sessions must be created after timetable_slots. Reorder here rather than in the list
     # above (list order also documents the natural entity order for readers).
     conn.execute(CREATE_STUDENTS)
+    # ADD COLUMN IF NOT EXISTS (not a real migration system) so a column added to CREATE_STUDENTS
+    # after the table already exists on a live deployment still gets picked up on next startup —
+    # CREATE TABLE IF NOT EXISTS alone is a no-op against an existing table, it won't add columns.
+    conn.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS phone TEXT")
     conn.execute(CREATE_USERS)  # references students (already created)
     conn.execute(CREATE_TIMETABLE_SLOTS)
     conn.execute(CREATE_SESSIONS)  # references users + timetable_slots (both already created)

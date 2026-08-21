@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartAttend - Student Login</title>
+    <title>SmartAttend - Verify Code</title>
     <script>try{var t=localStorage.getItem("sa-theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -11,20 +11,19 @@
     <div class="login-wrap">
         <div class="login-brand">
             <div class="brand-logo">SA</div>
-            <h1>SmartAttend</h1>
-            <p>Student Portal</p>
+            <h1>Two-Factor Login</h1>
+            <p>Enter the 6-digit code from your authenticator app</p>
         </div>
         <div class="panel login-card">
             {% if error %}<div class="error">{{ error }}</div>{% endif %}
-            <form method="post" action="/login">
+            <form method="post" action="/verify-2fa">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <label for="username">Roll Number</label>
-                <input type="text" id="username" name="username" autocomplete="username" required autofocus>
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" autocomplete="current-password" required>
-                <button type="submit" class="btn-block">Login</button>
+                <label for="code">Authentication Code</label>
+                <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                       autocomplete="one-time-code" required autofocus>
+                <button type="submit" class="btn-block">Verify</button>
             </form>
-            <p style="margin-top:14px;"><a href="/forgot-password">Forgot password?</a></p>
+            <p style="margin-top:14px;"><a href="/login">&#8592; Back to login</a></p>
         </div>
     </div>
 <script src="/static/app.js" defer></script>

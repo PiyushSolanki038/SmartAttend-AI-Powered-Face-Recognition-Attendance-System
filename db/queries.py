@@ -757,6 +757,12 @@ def update_student_email(student_id: int, email: str):
     conn.commit()
 
 
+def update_student_phone(student_id: int, phone: str):
+    conn = get_connection()
+    conn.execute("UPDATE students SET phone = %s WHERE id = %s", (phone, student_id))
+    conn.commit()
+
+
 def get_student_rank(student_id: int, department: str = None, year: int = None, semester: int = None):
     """Returns (rank, total_students) by overall attendance percentage, best first.
     Pass the student's own department/year/semester to rank within their own class only,

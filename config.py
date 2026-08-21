@@ -71,6 +71,12 @@ NOTIFY_DEFAULTER_CHECK = True
 # actual Vercel URL in .env; the welcome email's portal-login button is simply omitted if unset.
 PORTAL_URL = os.environ.get("PORTAL_URL", "").rstrip("/")
 
+# SMS alerts (Twilio) — optional, alongside email. All three must be set for send_sms() to do
+# anything; a Twilio trial account's free tier is enough to test this without paying.
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")
+
 # Best-effort: on a read-only serverless filesystem (e.g. Vercel), the home directory may not
 # be writable at all. The desktop app needs these directories to exist; the deployed webportal
 # doesn't touch DB_PATH/EXPORT_DIR/BACKUP_DIR at all (Postgres-only), so a failure here should

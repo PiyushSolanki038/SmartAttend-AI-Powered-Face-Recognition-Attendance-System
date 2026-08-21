@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartAttend - Dashboard</title>
+    <script>try{var t=localStorage.getItem("sa-theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -24,6 +25,7 @@
                 <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
                 <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
                 <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/leaderboard"><span class="icon">&#127942;</span>Leaderboard</a>
                 <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
             </nav>
             <div class="sidebar-foot">
@@ -42,6 +44,9 @@
                     </div>
                     <div class="avatar">{{ student.name[0]|upper }}</div>
                 </div>
+                <div class="who" style="margin-left:auto;" data-sa-live="dashboard">
+                    <span id="sa-live-dot" style="font-size:0.68rem; color:var(--text-dim); display:none;">&#9679; live</span>
+                </div>
             </div>
 
             {% if is_low %}
@@ -56,6 +61,7 @@
                 <a href="/analytics" class="filter-chip">&#128201; Analytics</a>
                 <a href="/timetable" class="filter-chip">&#128337; Timetable</a>
                 <a href="/requests" class="filter-chip">&#128172; Requests</a>
+                <a href="/leaderboard" class="filter-chip">&#127942; Leaderboard</a>
                 <a href="/report.pdf" class="filter-chip">&#128190; Download PDF</a>
             </div>
 
@@ -63,15 +69,15 @@
                 <div class="panel">
                     <div class="panel-title">Overall Attendance</div>
                     <div class="stat-hero">
-                        <div class="donut" style="--pct: {{ overall_pct|round(0, 'floor') }}; --c1: {{ 'var(--red)' if is_low else 'var(--green)' }}; --c2: var(--border);">
+                        <div class="donut" id="sa-donut" style="--pct: {{ overall_pct|round(0, 'floor') }}; --c1: {{ 'var(--red)' if is_low else 'var(--green)' }}; --c2: var(--border);">
                             <div class="donut-inner">
-                                <span class="big">{{ "%.0f"|format(overall_pct) }}%</span>
+                                <span class="big" id="sa-overall-big">{{ "%.0f"|format(overall_pct) }}%</span>
                                 <span class="small">Present</span>
                             </div>
                         </div>
                         <div class="stat-hero-side">
                             <div class="label">Sessions Attended</div>
-                            <div class="value">{{ total_present }} / {{ total_sessions }}</div>
+                            <div class="value" id="sa-hero-value">{{ total_present }} / {{ total_sessions }}</div>
                             <div class="legend-item"><span class="legend-dot" style="background: {{ 'var(--red)' if is_low else 'var(--green)' }};"></span>Present</div>
                             <div class="legend-item"><span class="legend-dot" style="background: var(--border);"></span>Absent</div>
                         </div>
@@ -84,17 +90,17 @@
                         <div class="icon-tile">
                             <div class="badge badge-purple">&#127942;</div>
                             <div class="tile-label">Class Rank</div>
-                            <div class="tile-value">{{ "#%d"|format(rank) if rank else "--" }}</div>
+                            <div class="tile-value" id="sa-rank">{{ "#%d"|format(rank) if rank else "--" }}</div>
                         </div>
                         <div class="icon-tile">
                             <div class="badge badge-amber">&#128293;</div>
                             <div class="tile-label">Streak</div>
-                            <div class="tile-value">{{ streak }}</div>
+                            <div class="tile-value" id="sa-streak">{{ streak }}</div>
                         </div>
                         <div class="icon-tile">
                             <div class="badge badge-blue">&#127919;</div>
                             <div class="tile-label">To Goal</div>
-                            <div class="tile-value">{{ days_needed if is_low else "-" }}</div>
+                            <div class="tile-value" id="sa-goal">{{ days_needed if is_low else "-" }}</div>
                         </div>
                     </div>
                 </div>
@@ -104,27 +110,27 @@
                 <div class="icon-tile">
                     <div class="badge badge-green">&#10003;</div>
                     <div class="tile-label">Present</div>
-                    <div class="tile-value">{{ total_present }}</div>
+                    <div class="tile-value" id="sa-present">{{ total_present }}</div>
                 </div>
                 <div class="icon-tile">
                     <div class="badge badge-red">&#10005;</div>
                     <div class="tile-label">Absent</div>
-                    <div class="tile-value">{{ total_sessions - total_present }}</div>
+                    <div class="tile-value" id="sa-absent">{{ total_sessions - total_present }}</div>
                 </div>
                 <div class="icon-tile">
                     <div class="badge badge-amber">&#8987;</div>
                     <div class="tile-label">Late</div>
-                    <div class="tile-value">{{ late_count }}</div>
+                    <div class="tile-value" id="sa-late">{{ late_count }}</div>
                 </div>
                 <div class="icon-tile">
                     <div class="badge badge-blue">&#128218;</div>
                     <div class="tile-label">Subjects</div>
-                    <div class="tile-value">{{ subjects|length }}</div>
+                    <div class="tile-value" id="sa-subjcount">{{ subjects|length }}</div>
                 </div>
                 <div class="icon-tile">
                     <div class="badge badge-purple">&#128200;</div>
                     <div class="tile-label">Overall %</div>
-                    <div class="tile-value">{{ "%.0f"|format(overall_pct) }}%</div>
+                    <div class="tile-value" id="sa-overallpct">{{ "%.0f"|format(overall_pct) }}%</div>
                 </div>
                 <div class="icon-tile">
                     <div class="badge badge-gray">&#127919;</div>
@@ -198,5 +204,6 @@
         <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
         <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
     </nav>
+<script src="/static/app.js" defer></script>
 </body>
 </html>

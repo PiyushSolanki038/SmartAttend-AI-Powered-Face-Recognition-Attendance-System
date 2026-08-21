@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartAttend - Profile</title>
+    <script>try{var t=localStorage.getItem("sa-theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -24,6 +25,7 @@
                 <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
                 <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
                 <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/leaderboard"><span class="icon">&#127942;</span>Leaderboard</a>
                 <a href="/profile" class="active"><span class="icon">&#128100;</span>Profile</a>
             </nav>
             <div class="sidebar-foot">
@@ -67,14 +69,41 @@
                 </div>
 
                 <div class="panel">
-                    <div class="panel-title">Email (for low-attendance alerts)</div>
+                    <div class="panel-title">Contact (for attendance alerts)</div>
                     {% if saved %}<div class="success-msg">Saved.</div>{% endif %}
                     <form method="post" action="/profile">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="email" name="email" placeholder="you@example.com" value="{{ student.email or '' }}">
-                        <button type="submit">Save Email</button>
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="you@example.com" value="{{ student.email or '' }}">
+                        <label for="phone">Phone (for SMS alerts)</label>
+                        <input type="tel" id="phone" name="phone" placeholder="+91XXXXXXXXXX" value="{{ student.phone or '' }}">
+                        <button type="submit">Save Contact Info</button>
                     </form>
                 </div>
+            </div>
+
+            <div class="panel" style="margin-bottom:16px;">
+                <div class="panel-title">Two-Factor Authentication</div>
+                {% if totp_enabled %}
+                <div class="row">
+                    <div>
+                        <div class="row-title"><span class="status-pill status-present">Enabled</span></div>
+                        <div class="row-sub">Your account requires a code from an authenticator app at login.</div>
+                    </div>
+                    <form method="post" action="/2fa/disable" onsubmit="return confirm('Disable two-factor authentication for your account?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn-cancel">Disable</button>
+                    </form>
+                </div>
+                {% else %}
+                <div class="row">
+                    <div>
+                        <div class="row-title"><span class="status-pill status-unknown">Not enabled</span></div>
+                        <div class="row-sub">Add an extra layer of security with an authenticator app.</div>
+                    </div>
+                    <a href="/2fa/setup" class="btn btn-outline" style="padding:8px 14px; font-size:0.8rem;">Set Up</a>
+                </div>
+                {% endif %}
             </div>
 
             <div class="filter-bar">
@@ -82,6 +111,7 @@
                 <a href="/history" class="filter-chip">&#128203; History</a>
                 <a href="/analytics" class="filter-chip">&#128201; Analytics</a>
                 <a href="/requests" class="filter-chip">&#128172; Requests</a>
+                <a href="/leaderboard" class="filter-chip">&#127942; Leaderboard</a>
                 <a href="/report.pdf" class="filter-chip">&#128190; Download PDF</a>
             </div>
 
@@ -96,5 +126,6 @@
         <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
         <a href="/profile" class="active"><span class="icon">&#128100;</span>Profile</a>
     </nav>
+<script src="/static/app.js" defer></script>
 </body>
 </html>

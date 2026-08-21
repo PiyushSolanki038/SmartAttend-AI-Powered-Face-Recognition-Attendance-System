@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend - Leaderboard</title>
+    <script>try{var t=localStorage.getItem("sa-theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">SA</div>
+                <div>
+                    <div class="brand-name">SmartAttend</div>
+                    <div class="brand-sub">Student Portal</div>
+                </div>
+            </div>
+            <nav class="side-nav">
+                <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
+                <a href="/history"><span class="icon">&#128203;</span>History</a>
+                <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
+                <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
+                <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+                <a href="/leaderboard" class="active"><span class="icon">&#127942;</span>Leaderboard</a>
+                <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+            </nav>
+            <div class="sidebar-foot">
+                <a href="/logout"><span class="icon">&#8630;</span>Logout</a>
+            </div>
+        </aside>
+
+        <main class="main">
+            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <div class="topbar">
+                <h1>Class Leaderboard</h1>
+                <div class="who">
+                    <div class="who-meta">
+                        <div class="who-name">{{ student.name }}</div>
+                        <div class="who-sub">{{ student.department or "--" }} &middot; Y{{ student.year or "-" }}/S{{ student.semester or "-" }}</div>
+                    </div>
+                    <div class="avatar">{{ student.name[0]|upper }}</div>
+                </div>
+            </div>
+
+            <p style="color:var(--text-dim); font-size:0.85rem; margin-bottom:16px;">
+                Ranked by overall attendance percentage, within your own department/year/semester.
+                Only students with at least one recorded session are ranked.
+            </p>
+
+            <div class="panel">
+                {% if ranked %}
+                {% for r in ranked %}
+                <div class="row-with-action" style="{% if r.id == student.id %}background: var(--accent-soft); border-radius: 10px; padding-left: 10px; padding-right: 10px;{% endif %}">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="badge {% if r.rank == 1 %}badge-amber{% elif r.rank == 2 %}badge-gray{% elif r.rank == 3 %}badge-purple{% else %}badge-blue{% endif %}" style="width:32px; height:32px; font-size:0.8rem; font-weight:800;">
+                            {% if r.rank == 1 %}&#129351;{% elif r.rank == 2 %}&#129352;{% elif r.rank == 3 %}&#129353;{% else %}#{{ r.rank }}{% endif %}
+                        </div>
+                        <div>
+                            <div class="row-title">{{ r.name }}{% if r.id == student.id %} <span style="color:var(--accent); font-weight:700;">(You)</span>{% endif %}</div>
+                            <div class="row-sub">{{ r.roll_no }} &middot; {{ r.present }}/{{ r.total }} sessions</div>
+                        </div>
+                    </div>
+                    <span class="status-pill {{ 'status-present' if r.percentage >= threshold else 'status-absent' }}">{{ "%.0f"|format(r.percentage) }}%</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="empty-state">No ranked students yet — attendance needs to be recorded first.</p>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
+        <a href="/history"><span class="icon">&#128203;</span>History</a>
+        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
+        <a href="/profile"><span class="icon">&#128100;</span>Profile</a>
+    </nav>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

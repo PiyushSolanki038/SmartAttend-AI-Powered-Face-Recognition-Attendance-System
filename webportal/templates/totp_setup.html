@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartAttend - Change Password</title>
+    <title>SmartAttend - Set Up 2FA</title>
     <script>try{var t=localStorage.getItem("sa-theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}</script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -21,6 +21,8 @@
                 <a href="/dashboard"><span class="icon">&#128202;</span>Dashboard</a>
                 <a href="/history"><span class="icon">&#128203;</span>History</a>
                 <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
+                <a href="/calendar"><span class="icon">&#128197;</span>Calendar</a>
+                <a href="/announcements"><span class="icon">&#128227;</span>Announcements</a>
                 <a href="/timetable"><span class="icon">&#128337;</span>Timetable</a>
                 <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
                 <a href="/leaderboard"><span class="icon">&#127942;</span>Leaderboard</a>
@@ -32,41 +34,34 @@
         </aside>
 
         <main class="main">
-            <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+            <a href="/profile" class="back-link">&#8592; Back to Profile</a>
             <div class="topbar">
-                <h1>Change Password</h1>
+                <h1>Set Up Two-Factor Authentication</h1>
             </div>
 
             <div class="panel" style="max-width:420px;">
-                {% if forced %}<div class="error">For your security, you must set a new password before continuing.</div>{% endif %}
                 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-                {% if success %}<div class="success-msg">Password changed successfully.</div>{% endif %}
-                <form method="post" action="/change-password">
+                <p style="color:var(--text-mid); font-size:0.86rem; margin-bottom:16px;">
+                    Scan this QR code with an authenticator app (Google Authenticator, Authy,
+                    Microsoft Authenticator, etc.), then enter the 6-digit code it generates
+                    to confirm.
+                </p>
+                <div style="text-align:center; margin-bottom:16px;">
+                    <img src="{{ qr_data_uri }}" alt="2FA QR code" style="width:180px; height:180px; border-radius:12px; border:1px solid var(--border);">
+                </div>
+                <p style="font-size:0.72rem; color:var(--text-dim); margin-bottom:16px; word-break:break-all;">
+                    Can't scan? Enter this key manually: <b>{{ secret }}</b>
+                </p>
+                <form method="post" action="/2fa/setup">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <label>Current Password</label>
-                    <input type="password" name="current_password" required>
-                    <label>New Password</label>
-                    <input type="password" name="new_password" required>
-                    <label>Confirm New Password</label>
-                    <input type="password" name="confirm_password" required>
-                    <button type="submit" class="btn-block">Update Password</button>
+                    <label for="code">6-Digit Code</label>
+                    <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                           autocomplete="one-time-code" required autofocus>
+                    <button type="submit" class="btn-block">Enable 2FA</button>
                 </form>
             </div>
-            {% if not forced %}
-            <div style="margin-top:14px;">
-                <a href="/profile" class="btn btn-outline">Back to Profile</a>
-            </div>
-            {% endif %}
         </main>
     </div>
-
-    <nav class="bottom-nav">
-        <a href="/dashboard"><span class="icon">&#128202;</span>Home</a>
-        <a href="/history"><span class="icon">&#128203;</span>History</a>
-        <a href="/analytics"><span class="icon">&#128201;</span>Analytics</a>
-        <a href="/requests"><span class="icon">&#128172;</span>Requests</a>
-        <a href="/profile" class="active"><span class="icon">&#128100;</span>Profile</a>
-    </nav>
 <script src="/static/app.js" defer></script>
 </body>
 </html>

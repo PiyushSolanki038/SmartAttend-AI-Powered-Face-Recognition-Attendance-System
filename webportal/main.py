@@ -1,10 +1,14 @@
+import base64
 import os
 import secrets
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
+from io import BytesIO
 
+import pyotp
+import qrcode
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -22,6 +26,10 @@ from services.auth import (
 )
 from services.dashboard import render_student_charts_base64
 from services.pdf_report import export_student_pdf
+from services.totp import TOTPError, confirm_enrollment as totp_confirm_enrollment
+from services.totp import disable_totp as totp_disable
+from services.totp import start_enrollment as totp_start_enrollment
+from services.totp import verify_code as totp_verify_code
 from webportal.api import router as api_router
 from webportal.auth_backfill import backfill_student_logins
 
@@ -148,6 +156,40 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
             request, "login.html",
             {"error": "Invalid roll number or password", "csrf_token": _csrf_token(request)},
         )
+    if user["totp_enabled"]:
+        # Password verified but a second factor is still required — don't set student_id/
+        # user_id yet (that's what _current_student() checks), only a separate pending marker,
+        # so a half-finished login can't reach any authenticated page.
+        request.session["pending_2fa_user_id"] = user["id"]
+        return RedirectResponse("/verify-2fa", status_code=303)
+    request.session["student_id"] = user["student_id"]
+    request.session["user_id"] = user["id"]
+    if user["must_change_password"]:
+        return RedirectResponse("/change-password", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.get("/verify-2fa")
+def verify_2fa_form(request: Request):
+    if not request.session.get("pending_2fa_user_id"):
+        return RedirectResponse("/login")
+    return templates.TemplateResponse(request, "verify_2fa.html", {
+        "error": None, "csrf_token": _csrf_token(request),
+    })
+
+
+@app.post("/verify-2fa")
+def verify_2fa_submit(request: Request, code: str = Form(...), csrf_token: str = Form("")):
+    _check_csrf(request, csrf_token)
+    pending_user_id = request.session.get("pending_2fa_user_id")
+    if not pending_user_id:
+        return RedirectResponse("/login")
+    user = queries.get_user(pending_user_id)
+    if user is None or user["role"] != "student" or not totp_verify_code(user, code):
+        return templates.TemplateResponse(request, "verify_2fa.html", {
+            "error": "Invalid or expired code. Please try again.", "csrf_token": _csrf_token(request),
+        })
+    del request.session["pending_2fa_user_id"]
     request.session["student_id"] = user["student_id"]
     request.session["user_id"] = user["id"]
     if user["must_change_password"]:
@@ -169,6 +211,28 @@ def dashboard(request: Request):
     if _must_change_password(request):
         return RedirectResponse("/change-password")
     return templates.TemplateResponse(request, "dashboard.html", _dashboard_data(student))
+
+
+@app.get("/api/dashboard-live")
+def dashboard_live(request: Request):
+    """Polled by app.js every ~15s on the dashboard page so newly-marked attendance shows up
+    without a manual refresh. Returns just the handful of numbers the live-update JS updates
+    in place — not the subject bars/breakdown, which still need a full reload to change."""
+    student = _current_student(request)
+    if student is None:
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+    data = _dashboard_data(student)
+    return JSONResponse({
+        "overall_pct": data["overall_pct"],
+        "total_present": data["total_present"],
+        "total_sessions": data["total_sessions"],
+        "is_low": data["is_low"],
+        "rank": data["rank"],
+        "streak": data["streak"],
+        "days_needed": data["days_needed"],
+        "late_count": data["late_count"],
+        "subjects_count": len(data["subjects"]),
+    })
 
 
 @app.get("/history")
@@ -215,6 +279,7 @@ def _profile_context(request: Request, student, saved: bool = False):
         "student": student, "saved": saved, "csrf_token": _csrf_token(request),
         "rank": rank, "rank_total": rank_total, "streak": streak, "overall_pct": overall_pct,
         "last_login": last_login["occurred_at"] if last_login else None,
+        "totp_enabled": bool(user and user["totp_enabled"]),
     }
 
 
@@ -229,14 +294,74 @@ def profile(request: Request):
 
 
 @app.post("/profile")
-def profile_update(request: Request, email: str = Form(""), csrf_token: str = Form("")):
+def profile_update(request: Request, email: str = Form(""), phone: str = Form(""), csrf_token: str = Form("")):
     _check_csrf(request, csrf_token)
     student = _current_student(request)
     if student is None:
         return RedirectResponse("/login")
     queries.update_student_email(student["id"], email.strip() or None)
+    queries.update_student_phone(student["id"], phone.strip() or None)
     student = queries.get_student(student["id"])
     return templates.TemplateResponse(request, "profile.html", _profile_context(request, student, saved=True))
+
+
+def _qr_data_uri(data: str) -> str:
+    img = qrcode.make(data)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+@app.get("/2fa/setup")
+def totp_setup_form(request: Request):
+    student = _current_student(request)
+    if student is None:
+        return RedirectResponse("/login")
+    user = queries.get_user(request.session.get("user_id"))
+    if user is None:
+        return RedirectResponse("/login")
+    if user["totp_enabled"]:
+        return RedirectResponse("/profile")
+    secret, uri = totp_start_enrollment(user["id"])
+    request.session["totp_pending_secret"] = secret
+    return templates.TemplateResponse(request, "totp_setup.html", {
+        "student": student, "qr_data_uri": _qr_data_uri(uri), "secret": secret,
+        "error": None, "csrf_token": _csrf_token(request),
+    })
+
+
+@app.post("/2fa/setup")
+def totp_setup_submit(request: Request, code: str = Form(...), csrf_token: str = Form("")):
+    _check_csrf(request, csrf_token)
+    student = _current_student(request)
+    if student is None:
+        return RedirectResponse("/login")
+    user = queries.get_user(request.session.get("user_id"))
+    secret = request.session.get("totp_pending_secret")
+    if user is None or not secret:
+        return RedirectResponse("/2fa/setup")
+    try:
+        totp_confirm_enrollment(user["id"], secret, code)
+    except TOTPError as e:
+        uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user["username"], issuer_name=config.APP_NAME)
+        return templates.TemplateResponse(request, "totp_setup.html", {
+            "student": student, "qr_data_uri": _qr_data_uri(uri), "secret": secret,
+            "error": str(e), "csrf_token": _csrf_token(request),
+        })
+    del request.session["totp_pending_secret"]
+    return RedirectResponse("/profile", status_code=303)
+
+
+@app.post("/2fa/disable")
+def totp_disable_submit(request: Request, csrf_token: str = Form("")):
+    _check_csrf(request, csrf_token)
+    student = _current_student(request)
+    if student is None:
+        return RedirectResponse("/login")
+    user_id = request.session.get("user_id")
+    if user_id:
+        totp_disable(user_id)
+    return RedirectResponse("/profile", status_code=303)
 
 
 @app.get("/change-password")
@@ -538,6 +663,57 @@ def timetable_view(request: Request):
     })
 
 
+_ICS_WEEKDAY = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+
+
+def _ics_escape(text: str) -> str:
+    return (text or "").replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+
+
+def _next_occurrence_of(weekday: int):
+    today = datetime.now().date()
+    return today + timedelta(days=(weekday - today.weekday()) % 7)
+
+
+@app.get("/timetable.ics")
+def timetable_ics(request: Request):
+    """Downloads the student's weekly timetable as an iCalendar file — each class is a
+    weekly-recurring event (RRULE), so importing it once into Google/Outlook/Apple Calendar
+    keeps showing up every week without re-importing. Floating local time, no timezone
+    conversion — good enough for a single-institution deployment."""
+    student = _current_student(request)
+    if student is None:
+        return RedirectResponse("/login")
+    slots = queries.list_timetable_for_cohort(student["department"], student["year"], student["semester"])
+
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SmartAttend//Timetable//EN", "CALSCALE:GREGORIAN"]
+    now_stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    for slot in slots:
+        start_date = _next_occurrence_of(slot["day_of_week"])
+        sh, sm = slot["start_time"].split(":")[:2]
+        eh, em = slot["end_time"].split(":")[:2]
+        summary = slot["subject"] + (f" ({slot['section']})" if slot["section"] else "")
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:smartattend-slot-{slot['id']}@smartattend",
+            f"DTSTAMP:{now_stamp}",
+            f"DTSTART:{start_date.strftime('%Y%m%d')}T{sh}{sm}00",
+            f"DTEND:{start_date.strftime('%Y%m%d')}T{eh}{em}00",
+            f"RRULE:FREQ=WEEKLY;BYDAY={_ICS_WEEKDAY[slot['day_of_week']]}",
+            f"SUMMARY:{_ics_escape(summary)}",
+        ]
+        if slot["faculty"]:
+            lines.append(f"DESCRIPTION:Faculty: {_ics_escape(slot['faculty'])}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+
+    return Response(
+        content="\r\n".join(lines) + "\r\n",
+        media_type="text/calendar",
+        headers={"Content-Disposition": 'attachment; filename="smartattend_timetable.ics"'},
+    )
+
+
 # ---------- Leave / absence requests ----------
 
 def _leave_context(request: Request, student, status: str = "all", error: str = None):
@@ -602,6 +778,54 @@ def announcements_view(request: Request):
         return RedirectResponse("/change-password")
     items = announcement_service.list_for_cohort(student["department"], student["year"], student["semester"])
     return templates.TemplateResponse(request, "announcements.html", {"student": student, "announcements": items})
+
+
+@app.get("/leaderboard")
+def leaderboard_view(request: Request):
+    student = _current_student(request)
+    if student is None:
+        return RedirectResponse("/login")
+    if _must_change_password(request):
+        return RedirectResponse("/change-password")
+    cohort = dict(department=student["department"], year=student["year"], semester=student["semester"])
+    rows = queries.get_attendance_percentages(**cohort)
+    ranked = sorted([r for r in rows if r["total"] > 0], key=lambda r: r["percentage"], reverse=True)
+    for idx, r in enumerate(ranked, start=1):
+        r["rank"] = idx
+    return templates.TemplateResponse(request, "leaderboard.html", {
+        "student": student, "ranked": ranked, "threshold": config.DEFAULTER_THRESHOLD,
+    })
+
+
+@app.get("/api/notifications")
+def api_notifications(request: Request):
+    """Feeds the notification bell (app.js): recent announcements for the student's cohort,
+    merged with recent non-pending request-status changes, newest first. The client compares
+    the newest item's timestamp against a locally-stored "last seen" value to decide whether
+    to show the unread dot — nothing server-side tracks read/unread state."""
+    student = _current_student(request)
+    if student is None:
+        return JSONResponse({"error": "unauthenticated"}, status_code=401)
+
+    items = []
+    for a in queries.list_announcements_for_cohort(student["department"], student["year"], student["semester"], limit=5):
+        items.append({
+            "type": "announcement",
+            "title": a["subject"],
+            "sub": (a["body"] or "")[:90],
+            "created_at": a["created_at"].isoformat() if a["created_at"] else None,
+        })
+    for r in queries.get_recent_requests_for_student(student["id"], limit=5):
+        if r["status"] == "pending":
+            continue
+        items.append({
+            "type": "request",
+            "title": f"{r['kind'].title()} request {r['status']}",
+            "sub": (r["label"] or "")[:90],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        })
+    items.sort(key=lambda i: i["created_at"] or "", reverse=True)
+    return JSONResponse({"items": items[:10]})
 
 
 # ---------- QR self check-in ----------

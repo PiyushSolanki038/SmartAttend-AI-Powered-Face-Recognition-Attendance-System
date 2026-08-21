@@ -47,6 +47,21 @@ def send_email(to_address: str, subject: str, body: str, html_body: str = None) 
         return False
 
 
+def send_sms(to_number: str, body: str) -> bool:
+    """Sends an SMS via Twilio, alongside (not instead of) email — same silent-False-on-failure
+    contract as send_email(): no Twilio account configured, or the send itself fails, both just
+    mean no SMS goes out, they never raise and never block the caller's other notification paths."""
+    if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN and config.TWILIO_FROM_NUMBER):
+        return False
+    try:
+        from twilio.rest import Client
+        client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
+        client.messages.create(body=body, from_=config.TWILIO_FROM_NUMBER, to=to_number)
+        return True
+    except Exception:
+        return False
+
+
 _BRAND_COLOR = "#1F6AA5"
 
 
@@ -135,23 +150,33 @@ def notify_low_attendance_students(threshold: float = None):
     sent = []
     for row in defaulters:
         student = queries.get_student(row["id"])
-        if student is None or not student["email"]:
+        if student is None:
             continue
-        body = (
-            f"Hi {student['name']},\n\n"
-            f"Your current attendance is {row['percentage']:.1f}%, which is below the "
-            f"required {threshold:.0f}%. Please check the student portal for details.\n\n"
-            f"- SmartAttend"
-        )
-        html_body = render_email_html(
-            heading="Low Attendance Alert ⚠️",
-            paragraphs=[
-                f"Hi {student['name']}, your current attendance is below the required threshold.",
-            ],
-            credentials={"Current Attendance": f"{row['percentage']:.1f}%", "Required": f"{threshold:.0f}%"},
-            note="Please check the student portal for a subject-wise breakdown.",
-        )
-        if send_email(student["email"], "Low Attendance Alert", body, html_body):
+        emailed = False
+        if student["email"]:
+            body = (
+                f"Hi {student['name']},\n\n"
+                f"Your current attendance is {row['percentage']:.1f}%, which is below the "
+                f"required {threshold:.0f}%. Please check the student portal for details.\n\n"
+                f"- SmartAttend"
+            )
+            html_body = render_email_html(
+                heading="Low Attendance Alert ⚠️",
+                paragraphs=[
+                    f"Hi {student['name']}, your current attendance is below the required threshold.",
+                ],
+                credentials={"Current Attendance": f"{row['percentage']:.1f}%", "Required": f"{threshold:.0f}%"},
+                note="Please check the student portal for a subject-wise breakdown.",
+            )
+            emailed = send_email(student["email"], "Low Attendance Alert", body, html_body)
+        texted = False
+        if student["phone"]:
+            texted = send_sms(
+                student["phone"],
+                f"SmartAttend: your attendance is {row['percentage']:.1f}%, below the required "
+                f"{threshold:.0f}%. Check the student portal for details.",
+            )
+        if emailed or texted:
             sent.append(student["roll_no"])
     return sent
 

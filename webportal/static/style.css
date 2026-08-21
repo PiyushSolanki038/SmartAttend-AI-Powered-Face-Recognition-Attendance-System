@@ -138,8 +138,13 @@ a { color: inherit; }
 
 .main { flex: 1; padding: 22px 26px 90px; max-width: 1100px; }
 
-.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.topbar h1 { font-size: 1.3rem; font-weight: 700; }
+/* flex-start + h1's margin-right:auto (not justify-content:space-between) so this still lays
+   out correctly regardless of how many right-side children the topbar ends up with — some
+   templates have just an .avatar, some have a full .who block, dashboard.html has two .who
+   blocks, and app.js injects an additional controls group into every page on top of that.
+   space-between distributes ALL children evenly, which looks broken with 3+ of them. */
+.topbar { display: flex; justify-content: flex-start; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+.topbar h1 { font-size: 1.3rem; font-weight: 700; margin-right: auto; }
 .topbar .who { display: flex; align-items: center; gap: 10px; }
 .topbar .who-meta { text-align: right; }
 .topbar .who-name { font-size: 0.85rem; font-weight: 600; }

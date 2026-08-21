@@ -777,13 +777,37 @@ def get_student_rank(student_id: int, department: str = None, year: int = None, 
 
 def get_subject_class_averages(department: str = None, year: int = None, semester: int = None):
     """Returns {subject: average_percentage} for comparison on the student portal dashboard.
-    Pass department/year/semester to scope the average to the student's own class/batch."""
-    subjects = get_distinct_subjects()
-    result = {}
-    for subject in subjects:
-        rows = [r for r in get_attendance_percentages(subject, department, year, semester) if r["total"] > 0]
-        result[subject] = sum(r["percentage"] for r in rows) / len(rows) if rows else 0.0
-    return result
+    Pass department/year/semester to scope the average to the student's own class/batch.
+
+    One query instead of looping get_attendance_percentages() once per subject (was N+1 —
+    with 6-8 subjects that's 6-8 extra full attendance/sessions/students joins per dashboard
+    load, each a network round-trip; noticeably slow on a serverless deploy where the DB isn't
+    in the same region). Computes each student's per-subject percentage in a CTE, then averages
+    those percentages per subject — same "average of individual percentages" semantics as the
+    original loop, not a session-count-weighted average."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        WITH per_student_subject AS (
+            SELECT st.id AS student_id, sess.subject,
+                   SUM(CASE WHEN a.status = 'present' OR a.status = 'manual' THEN 1 ELSE 0 END) AS present_count,
+                   COUNT(a.id) AS total_count
+            FROM students st
+            LEFT JOIN attendance a ON a.student_id = st.id
+            LEFT JOIN sessions sess ON a.session_id = sess.id
+            WHERE st.department IS NOT DISTINCT FROM %s
+              AND st.year IS NOT DISTINCT FROM %s
+              AND st.semester IS NOT DISTINCT FROM %s
+            GROUP BY st.id, sess.subject
+        )
+        SELECT subject, AVG(present_count::float / total_count * 100) AS avg_pct
+        FROM per_student_subject
+        WHERE subject IS NOT NULL AND total_count > 0
+        GROUP BY subject
+        """,
+        (department, year, semester),
+    ).fetchall()
+    return {row["subject"]: float(row["avg_pct"]) for row in rows}
 
 
 def get_current_streak(student_id: int) -> int:

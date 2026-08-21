@@ -299,17 +299,20 @@ class SessionScreen(ctk.CTkFrame):
         label.pack(padx=20, pady=20)
 
     def _send_announcement(self):
-        subject = simpledialog.askstring("Announcement", "Subject:", parent=self)
+        # CTkInputDialog (not tkinter's simpledialog) — simpledialog is a plain, unthemed Tk
+        # window that renders tiny/half-black next to a customtkinter dark-themed app; this
+        # matches the app's own theme and sizes itself properly.
+        subject = ctk.CTkInputDialog(text="Subject:", title="Announcement").get_input()
         if not subject:
             return
-        body = simpledialog.askstring("Announcement", "Message:", parent=self)
+        body = ctk.CTkInputDialog(text="Message:", title="Announcement").get_input()
         if not body:
             return
         institution_wide = messagebox.askyesno("Scope", "Send to the whole institution? (No = department-only)")
         actor_id = self.app.current_user["id"] if self.app.current_user else None
         department = None
         if not institution_wide:
-            department = simpledialog.askstring("Department", "Department to notify:", parent=self)
+            department = ctk.CTkInputDialog(text="Department to notify:", title="Department").get_input()
         try:
             _, sent = create_announcement(actor_id, subject, body, department=department,
                                            is_institution_wide=institution_wide)

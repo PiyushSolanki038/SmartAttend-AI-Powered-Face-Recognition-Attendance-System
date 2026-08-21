@@ -62,6 +62,24 @@ def send_sms(to_number: str, body: str) -> bool:
         return False
 
 
+def send_whatsapp(to_number: str, body: str) -> bool:
+    """Sends a WhatsApp message via Twilio's Sandbox — the practical alternative to send_sms()
+    for Indian numbers, which are blocked from receiving free-form SMS on a trial Twilio
+    account by TRAI/DLT regulation. The recipient must have opted in once (sent the sandbox's
+    "join <code>" phrase to TWILIO_WHATSAPP_FROM on WhatsApp) — messages to anyone who hasn't
+    just fail silently here like any other send_* failure."""
+    if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN):
+        return False
+    try:
+        from twilio.rest import Client
+        client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
+        to = to_number if to_number.startswith("whatsapp:") else f"whatsapp:{to_number}"
+        client.messages.create(body=body, from_=config.TWILIO_WHATSAPP_FROM, to=to)
+        return True
+    except Exception:
+        return False
+
+
 _BRAND_COLOR = "#1F6AA5"
 
 
@@ -171,7 +189,9 @@ def notify_low_attendance_students(threshold: float = None):
             emailed = send_email(student["email"], "Low Attendance Alert", body, html_body)
         texted = False
         if student["phone"]:
-            texted = send_sms(
+            # WhatsApp, not SMS — Twilio trial accounts can't send free-form SMS to Indian
+            # numbers (TRAI/DLT regulation); WhatsApp Sandbox has no such restriction.
+            texted = send_whatsapp(
                 student["phone"],
                 f"SmartAttend: your attendance is {row['percentage']:.1f}%, below the required "
                 f"{threshold:.0f}%. Check the student portal for details.",

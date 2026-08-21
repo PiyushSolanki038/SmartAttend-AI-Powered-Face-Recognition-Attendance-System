@@ -72,10 +72,18 @@ NOTIFY_DEFAULTER_CHECK = True
 PORTAL_URL = os.environ.get("PORTAL_URL", "").rstrip("/")
 
 # SMS alerts (Twilio) — optional, alongside email. All three must be set for send_sms() to do
-# anything; a Twilio trial account's free tier is enough to test this without paying.
+# anything. NOTE: sending plain SMS to Indian numbers on a Twilio trial account is blocked by
+# TRAI/DLT regulations (India-specific — pre-approved templates only, no free-form text), so
+# send_whatsapp() below (Twilio's WhatsApp Sandbox) is the practical option without a full
+# business DLT registration.
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")
+
+# Twilio's WhatsApp Sandbox number is the same for every trial account — recipients opt in
+# once by sending the sandbox's "join <code>" phrase to this number on WhatsApp (shown in the
+# Twilio console under Messaging -> Try it out -> Send a WhatsApp message).
+TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
 
 # Best-effort: on a read-only serverless filesystem (e.g. Vercel), the home directory may not
 # be writable at all. The desktop app needs these directories to exist; the deployed webportal

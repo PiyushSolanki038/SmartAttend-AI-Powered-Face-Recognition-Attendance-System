@@ -132,6 +132,12 @@ def add_student_from_frames(roll_no: str, name: str, department: str, year: int,
 
 def update_student_info(student_id: int, roll_no: str, name: str, department: str, year: int, semester: int):
     _validate_student_fields(roll_no, name, year, semester)
+    # UPDATE ... WHERE id = ? silently affects 0 rows if the student was deleted after the
+    # Enroll screen's Edit form was opened (e.g. deleted from another device, or a stale form
+    # left open) — check first so this fails with a clear message instead of the caller going
+    # on to insert_student_encoding() next, which crashes on the FK constraint.
+    if queries.get_student(student_id) is None:
+        raise EnrollmentError("This student no longer exists (it may have been deleted). Clear the form and try again.")
     queries.update_student(student_id, roll_no, name, department, year, semester)
 
 

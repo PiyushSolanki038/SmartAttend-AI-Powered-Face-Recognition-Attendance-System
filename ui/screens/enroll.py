@@ -306,6 +306,9 @@ class EnrollScreen(ctk.CTkFrame):
                     show_toast(self, f"{name} enrolled successfully", "success")
         except enrollment.EnrollmentError as e:
             messagebox.showerror("Enrollment Failed", str(e))
+            if self._editing_student_id is not None and "no longer exists" in str(e):
+                self._clear_form()  # stale edit target — don't leave the form stuck on a dead id
+                self._refresh_table()
             return
         except Exception as e:
             messagebox.showerror("Error", str(e))

@@ -1,3 +1,4 @@
+import re
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
@@ -7,6 +8,8 @@ from services import audit
 from services import timetable as timetable_service
 from ui.components.student_table import StudentTable
 from ui.components.toast import show_toast
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")  # strict 24-hour HH:MM, e.g. 09:00, 14:30
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -64,12 +67,12 @@ class TimetableScreen(ctk.CTkFrame):
         self.day_dropdown = ctk.CTkOptionMenu(form, values=DAYS)
         self.day_dropdown.grid(row=3, column=1, padx=6, pady=8, sticky="w")
 
-        ctk.CTkLabel(form, text="Start (HH:MM)").grid(row=3, column=2, padx=6, pady=8, sticky="e")
-        self.start_entry = ctk.CTkEntry(form, width=80, placeholder_text="09:00")
+        ctk.CTkLabel(form, text="Start (24-hr HH:MM)").grid(row=3, column=2, padx=6, pady=8, sticky="e")
+        self.start_entry = ctk.CTkEntry(form, width=90, placeholder_text="e.g. 14:00 = 2 PM")
         self.start_entry.grid(row=3, column=3, padx=6, pady=8)
 
-        ctk.CTkLabel(form, text="End (HH:MM)").grid(row=3, column=4, padx=6, pady=8, sticky="e")
-        self.end_entry = ctk.CTkEntry(form, width=80, placeholder_text="10:00")
+        ctk.CTkLabel(form, text="End (24-hr HH:MM)").grid(row=3, column=4, padx=6, pady=8, sticky="e")
+        self.end_entry = ctk.CTkEntry(form, width=90, placeholder_text="e.g. 15:00 = 3 PM")
         self.end_entry.grid(row=3, column=5, padx=6, pady=8)
 
         button_row = ctk.CTkFrame(form, fg_color="transparent")
@@ -170,6 +173,12 @@ class TimetableScreen(ctk.CTkFrame):
         end_time = self.end_entry.get().strip()
         if not subject or not start_time or not end_time:
             messagebox.showerror("Missing Field", "Subject, start time, and end time are required.")
+            return None
+        if not _TIME_RE.match(start_time) or not _TIME_RE.match(end_time):
+            messagebox.showerror(
+                "Invalid Time Format",
+                "Start/End time must be 24-hour HH:MM (e.g. 14:00 for 2 PM) — no AM/PM, no seconds.",
+            )
             return None
         return dict(
             department=self.dept_entry.get().strip() or None,

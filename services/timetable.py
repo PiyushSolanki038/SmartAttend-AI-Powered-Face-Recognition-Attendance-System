@@ -2,10 +2,12 @@
 the row-by-row error-collection pattern used by services.enrollment.bulk_import_csv."""
 
 import csv
+import re
 
 from db import queries
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")  # strict 24-hour HH:MM, e.g. 09:00, 14:30
 
 
 class TimetableImportError(Exception):
@@ -68,6 +70,10 @@ def bulk_import_csv(csv_path: str):
 
         if not subject or not start_time or not end_time:
             errors.append(f"Row {row_num}: missing subject/start_time/end_time")
+            continue
+        if not _TIME_RE.match(start_time) or not _TIME_RE.match(end_time):
+            errors.append(f"Row {row_num} ({subject}): start_time/end_time must be 24-hour HH:MM "
+                           f"(e.g. 14:00 for 2 PM), got '{start_time}'/'{end_time}'")
             continue
 
         try:

@@ -66,6 +66,11 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 NOTIFY_ON_SESSION_END = True
 NOTIFY_DEFAULTER_CHECK = True
 
+# The deployed student webportal's URL — the desktop app (which sends the enrollment welcome
+# email) has no other way to know this, since it isn't the thing being deployed. Set to the
+# actual Vercel URL in .env; the welcome email's portal-login button is simply omitted if unset.
+PORTAL_URL = os.environ.get("PORTAL_URL", "").rstrip("/")
+
 # Best-effort: on a read-only serverless filesystem (e.g. Vercel), the home directory may not
 # be writable at all. The desktop app needs these directories to exist; the deployed webportal
 # doesn't touch DB_PATH/EXPORT_DIR/BACKUP_DIR at all (Postgres-only), so a failure here should

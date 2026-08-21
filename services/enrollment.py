@@ -81,18 +81,21 @@ def _send_welcome_email(student_id: int, roll_no: str, name: str, email: str) ->
     itself must not fail just because the welcome email couldn't go out."""
     if not email:
         return False
+    import config
     from services.auth import create_student_login
     from services.notifications import render_email_html, send_email
 
     temp_password = create_student_login(student_id, roll_no, full_name=name)
     if temp_password is None:
         return False
+    portal_link_line = f"\nStudent Portal: {config.PORTAL_URL}\n" if config.PORTAL_URL else ""
     body = (
         f"Hi {name},\n\n"
         f"You've been enrolled in SmartAttend. Use these credentials to log in to the "
         f"student portal and check your attendance:\n\n"
         f"Username: {roll_no}\n"
-        f"Temporary Password: {temp_password}\n\n"
+        f"Temporary Password: {temp_password}\n"
+        f"{portal_link_line}\n"
         f"You'll be asked to set a new password the first time you log in.\n\n"
         f"- SmartAttend"
     )
@@ -104,6 +107,7 @@ def _send_welcome_email(student_id: int, roll_no: str, name: str, email: str) ->
         ],
         credentials={"Username": roll_no, "Temporary Password": temp_password},
         note="You'll be asked to set a new password the first time you log in.",
+        button={"text": "Open Student Portal", "url": config.PORTAL_URL} if config.PORTAL_URL else None,
     )
     return send_email(email, "Welcome to SmartAttend — Your Portal Login", body, html_body)
 

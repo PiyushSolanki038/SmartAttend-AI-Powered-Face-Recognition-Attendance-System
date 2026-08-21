@@ -27,6 +27,7 @@ class SessionController:
         self._fallback_session_id = None
         self._today = None              # local date string, refreshed if the loop straddles midnight
         self._created_by_user_id = None
+        self._faculty_name = None       # full_name of whoever's logged in and running this session
         self._frame_count = 0
         self._stored_encodings = []
         self.present_students = {}  # student_id -> name
@@ -49,6 +50,8 @@ class SessionController:
         self._fallback_session_id = None
         self.session_id = None          # no longer eagerly created; resolved per-recognition
         self._created_by_user_id = user_id
+        user = queries.get_user(user_id) if user_id is not None else None
+        self._faculty_name = user["full_name"] if user and user["full_name"] else None
         self._stored_encodings = queries.get_all_encodings()
         self.total_enrolled = len(queries.list_students())
         self.present_students = {}
@@ -83,7 +86,8 @@ class SessionController:
         dow = now.weekday()                                 # Monday=0, matches timetable_slots.day_of_week
         time_str = now.strftime("%H:%M")
         slot = queries.find_active_timetable_slot(
-            student["department"], student["year"], student["semester"], dow, time_str)
+            student["department"], student["year"], student["semester"], dow, time_str,
+            faculty=self._faculty_name)
         if slot is None:
             if self._fallback_session_id is None:
                 self._fallback_session_id = queries.get_or_create_fallback_session(today_str, self._created_by_user_id)

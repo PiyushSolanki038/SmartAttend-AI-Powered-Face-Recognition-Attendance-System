@@ -142,11 +142,32 @@ def get_open_auto_session_today():
     ).fetchone()
 
 
-def find_active_timetable_slot(department, year, semester, day_of_week, time_str):
+def find_active_timetable_slot(department, year, semester, day_of_week, time_str, faculty=None):
     """Returns the timetable slot (if any) covering time_str ('HH:MM') on day_of_week for the given
     department/year/semester. Section is intentionally NOT filtered here — students table has no
-    section column (see plan D3)."""
+    section column (see plan D3).
+
+    If `faculty` is given (the name of whoever's logged into the desktop app running Live
+    Attendance), a slot taught by that exact faculty is preferred over any other slot that
+    happens to match the same cohort/time — this matters if two different faculty ever have
+    overlapping slots for the same cohort, and generally makes sure the session gets attributed
+    to whoever's actually taking attendance rather than an arbitrary LIMIT-1 pick. Falls back to
+    the old cohort/time-only match if no slot names that exact faculty (e.g. a substitute, or a
+    name-format mismatch), so this stays backward-compatible."""
     conn = get_connection()
+    if faculty:
+        row = conn.execute(
+            """
+            SELECT * FROM timetable_slots
+            WHERE department = %s AND year = %s AND semester = %s
+              AND day_of_week = %s AND start_time <= %s AND end_time > %s
+              AND TRIM(LOWER(faculty)) = TRIM(LOWER(%s))
+            LIMIT 1
+            """,
+            (department, year, semester, day_of_week, time_str, time_str, faculty),
+        ).fetchone()
+        if row is not None:
+            return row
     return conn.execute(
         """
         SELECT * FROM timetable_slots
